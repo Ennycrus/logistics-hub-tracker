@@ -32,7 +32,7 @@ Import every gun-scanner file for the day; each waybill is sorted by its prefix:
 5. Click **Confirm import**, check the summary box, then **Import**.
 6. Repeat for the next file (for example the Base file after the TEMU file).
 
-The same file can never be imported twice, and a waybill already in the system is never created again.
+The same file can never be imported twice, and a waybill already in the system is never created again. Imported the wrong file or chose the wrong date? Click **Undo** on that row in **Import history** straight away, before updating any statuses.
 
 ## 3. Update statuses
 
@@ -86,7 +86,7 @@ A backup runs by itself every evening at 7 pm (and catches up when the laptop is
 
 ## 7. Saturday: check the weekly delivery
 
-The delivery week runs Monday to Saturday, and its figures come only from finalized reports.
+The delivery week runs Monday to Saturday, and its figures come only from finalized reports. The **Dashboard** shows this week's rate every day; the **Weekly** page has the full detail.
 
 1. After finalizing Saturday's TEMU and Base reports, go to **Weekly**.
 2. Pick **TEMU** or **Base** with the switch; use **Previous week** / **Next week** to move between weeks.
@@ -96,6 +96,8 @@ The delivery week runs Monday to Saturday, and its figures come only from finali
 Available = Monday's Old Pending + every Inbound from Monday to Saturday, so each shipment is counted once however many days it waited.
 
 ## Occasional tasks
+
+**Undo a wrong import.** In **Import history**, click **Undo** on that row and confirm. Only the shipments that import created are removed; shipments that were already in the system stay. It is refused if any of its shipments already has a status update, is in a finalized report, or appears in a later import (undo the later one first).
 
 **Correct a finalized report.** Open **Daily Report** on that date and type, write a reason under **Need to correct this report?**, click **Start correction**, fix the figures, then finalize again. The original stays in **History** as *Replaced*; send the new version (`_v2`) to the company.
 
@@ -116,6 +118,7 @@ Available = Monday's Old Pending + every Inbound from Monday to Saturday, so eac
 | "Security check failed. Refresh the page..." | Press **F5** and try again. |
 | Page looks old after an update | Press **Ctrl+Shift+R**. |
 | "This exact file was already imported..." | The file is already in; check **Import history**. |
+| "This import cannot be undone..." | Its shipments were already worked on or reported. Fix them one by one on **Shipments**, or start a correction if the report is finalized. |
 | "Unknown command" or "No module named django" | Activate the venv first: `venv\Scripts\activate` in the `backend` folder. |
 | Check line says **Difference** instead of Balanced | Look for shipments without a result on **Pending**; do not finalize until it balances or you know why. |
 | "... report is finalized" when editing | Use **Start correction** instead. |

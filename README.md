@@ -9,6 +9,7 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 ## Features
 
 - **Scanner import with preview** - finds the waybill column automatically, flags duplicates, invalid rows and already-closed shipments. The same file can never be imported twice.
+- **Undo a wrong import** - removes the import and only the shipments it created. Refused if any of them already has a status update, is in a finalized report, or appears in a later import.
 - **Two shipment types, sorted by waybill prefix** - `3034...` = TEMU, `1...` = Base. Waybills with any other prefix make the import ask: Base, TEMU or Skip.
 - **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
 - **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
@@ -16,8 +17,9 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
 - **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
+- **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
-- **Dashboard, Pending list, Report history, Settings** - statuses and failure reasons are editable.
+- **Pending list, Report history, Settings** - statuses and failure reasons are editable.
 - **Backup and reset commands** for safe day-to-day use.
 
 ## How the report figures are calculated
@@ -47,12 +49,14 @@ The delivery week runs **Monday to Saturday**, and only **finalized** reports ar
 | Available this week | Monday's Old Pending + every Inbound from Monday to Saturday |
 | Weekly delivery rate | Delivered this week / Available this week |
 
-The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it
+The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it three times. Days that are not finalized are shown as missing, and without Monday there is no weekly rate.
+
+## Project structure
 hub-tracker/
 backend/ Django project
 config/ settings and URLs
 core/ hub settings, statuses, failure reasons, login
-shipments/ shipments, status history, scanner imports
+shipments/ shipments, status history, scanner imports and undo
 reports/ reporting days, calculations, reports, weekly summary, Excel export
 .env.example template for your private .env file
 requirements.txt
@@ -63,7 +67,7 @@ src/components/ layout, status editor, dialogs, Base/TEMU switch
 docs/
 DAILY_ROUTINE.md step-by-step daily guide
 
-The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `reports/services/calculations.py` and `reports/services/weekly.py`), so the API views stay thin.
+The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py` and `reports/services/weekly.py`), so the API views stay thin.
 
 ## Setup (Windows)
 
@@ -116,7 +120,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
 | `python manage.py reset_data` | Deletes all shipments, imports and reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (231 tests) |
+| `python manage.py test` | Runs the test suite (239 tests) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -131,6 +135,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 | `POST /api/shipments/bulk-status/` | Change many, all or nothing |
 | `POST /api/imports/preview/` | Read a scanner file, save nothing |
 | `POST /api/imports/confirm/` | Import it (`unknown_type`: base, temu or skip) |
+| `DELETE /api/imports/<id>/` | Undo an import (refused if its shipments were worked on) |
 | `GET/PATCH /api/reports/<date>/` | The day's draft or finalized report |
 | `POST /api/reports/<date>/finalize/` | Freeze the report |
 | `POST /api/reports/<date>/correct/` | Start a corrected version |
@@ -144,6 +149,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 - The secret key lives in `backend/.env`, which is never committed. Only `.env.example` is in the repository.
 - The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never leaves your computer.
 - `DEBUG` is off unless `.env` turns it on.
+- Only the website's login session can reach the API, and Excel files are read with `defusedxml` protection.
 - The app is meant to run on your own computer. `runserver` is a development server, not for the public internet.
 
 ## License
