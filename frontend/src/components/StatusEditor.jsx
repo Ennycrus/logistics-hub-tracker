@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { shipments } from '../api/client'
+import ConfirmDialog from './ConfirmDialog'
 
 // Today's date as YYYY-MM-DD in your own time zone.
 function today() {
@@ -32,6 +33,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [failures, setFailures] = useState([]) // bulk: which shipments broke a rule
+  const [confirmingClose, setConfirmingClose] = useState(false) // "Discard changes?" box is open
 
   const status = statuses.find((s) => String(s.id) === statusId)
   const reason = reasons.find((r) => String(r.id) === reasonId)
@@ -51,14 +53,17 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   // Ask before throwing away changes you haven't saved.
   function close() {
     if (saving) return
-    if (dirty && !window.confirm('Discard your unsaved changes?')) return
+    if (dirty) {
+      setConfirmingClose(true)
+      return
+    }
     onClose()
   }
 
-  // Close with the Escape key.
+  // Close with the Escape key (unless the "Discard changes?" box is open: Esc closes that box).
   useEffect(() => {
     function onKey(e) {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape' && !confirmingClose) close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -97,87 +102,99 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   const fieldError = (name) => fieldErrors[name]?.[0]
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <form className="card dialog" onSubmit={handleSubmit}>
-        <h2>{bulk ? `Update ${selected.length} shipments` : 'Update status'}</h2>
-        {bulk ? (
-          <p className="muted">
-            All {selected.length} selected shipments get the same status. If any one of them breaks a rule,
-            nothing is saved.
-          </p>
-        ) : (
-          <p className="muted">
-            Waybill <span className="mono">{shipment.waybill_number}</span> · currently{' '}
-            <span className={`badge badge-${shipment.status_category}`}>{shipment.status_name}</span>
-          </p>
-        )}
+    <>
+      <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+        <form className="card dialog" onSubmit={handleSubmit}>
+          <h2>{bulk ? `Update ${selected.length} shipments` : 'Update status'}</h2>
+          {bulk ? (
+            <p className="muted">
+              All {selected.length} selected shipments get the same status. If any one of them breaks a rule,
+              nothing is saved.
+            </p>
+          ) : (
+            <p className="muted">
+              Waybill <span className="mono">{shipment.waybill_number}</span> · currently{' '}
+              <span className={`badge badge-${shipment.status_category}`}>{shipment.status_name}</span>
+            </p>
+          )}
 
-        <label>
-          New status
-          <select value={statusId} onChange={(e) => setStatusId(e.target.value)} autoFocus required>
-            {bulk && <option value="">Choose a status…</option>}
-            {statuses.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </label>
-
-        {needsReason && (
           <label>
-            Reason
-            <select value={reasonId} onChange={(e) => setReasonId(e.target.value)} required>
-              <option value="">Choose a reason…</option>
-              {reasons.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
+            New status
+            <select value={statusId} onChange={(e) => setStatusId(e.target.value)} autoFocus required>
+              {bulk && <option value="">Choose a status…</option>}
+              {statuses.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            {fieldError('failure_reason') && <span className="field-error">{fieldError('failure_reason')}</span>}
           </label>
-        )}
 
-        {needsReasonNote && (
+          {needsReason && (
+            <label>
+              Reason
+              <select value={reasonId} onChange={(e) => setReasonId(e.target.value)} required>
+                <option value="">Choose a reason…</option>
+                {reasons.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              {fieldError('failure_reason') && <span className="field-error">{fieldError('failure_reason')}</span>}
+            </label>
+          )}
+
+          {needsReasonNote && (
+            <label>
+              Explain "Other"
+              <input value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} required />
+              {fieldError('reason_note') && <span className="field-error">{fieldError('reason_note')}</span>}
+            </label>
+          )}
+
           <label>
-            Explain "Other"
-            <input value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} required />
-            {fieldError('reason_note') && <span className="field-error">{fieldError('reason_note')}</span>}
+            {!wasDelivered
+              ? 'Note (optional)'
+              : bulk
+                ? `Reason for change (required: ${deliveredCount} selected shipment(s) already delivered)`
+                : 'Reason for change (required: this shipment is already delivered)'}
+            <textarea
+              rows="2"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              required={wasDelivered}
+            />
+            {fieldError('note') && <span className="field-error">{fieldError('note')}</span>}
           </label>
-        )}
 
-        <label>
-          {!wasDelivered
-            ? 'Note (optional)'
-            : bulk
-              ? `Reason for change (required: ${deliveredCount} selected shipment(s) already delivered)`
-              : 'Reason for change (required: this shipment is already delivered)'}
-          <textarea
-            rows="2"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            required={wasDelivered}
-          />
-          {fieldError('note') && <span className="field-error">{fieldError('note')}</span>}
-        </label>
+          <label>
+            Date this happened
+            <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} required />
+            {fieldError('effective_date') && <span className="field-error">{fieldError('effective_date')}</span>}
+          </label>
 
-        <label>
-          Date this happened
-          <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} required />
-          {fieldError('effective_date') && <span className="field-error">{fieldError('effective_date')}</span>}
-        </label>
+          {error && <p className="error">{error}</p>}
+          {failures.length > 0 && (
+            <ul className="failure-list">
+              {failures.map((f) => (
+                <li key={f.id}><span className="mono">{f.waybill_number}</span>: {f.error}</li>
+              ))}
+            </ul>
+          )}
 
-        {error && <p className="error">{error}</p>}
-        {failures.length > 0 && (
-          <ul className="failure-list">
-            {failures.map((f) => (
-              <li key={f.id}><span className="mono">{f.waybill_number}</span>: {f.error}</li>
-            ))}
-          </ul>
-        )}
+          <div className="dialog-actions">
+            <button type="button" className="secondary" onClick={close} disabled={saving}>Cancel</button>
+            <button type="submit" disabled={saving || !dirty}>{saving ? 'Saving…' : bulk ? `Update ${selected.length}` : 'Save'}</button>
+          </div>
+        </form>
+      </div>
 
-        <div className="dialog-actions">
-          <button type="button" className="secondary" onClick={close} disabled={saving}>Cancel</button>
-          <button type="submit" disabled={saving || !dirty}>{saving ? 'Saving…' : bulk ? `Update ${selected.length}` : 'Save'}</button>
-        </div>
-      </form>
-    </div>
+      {confirmingClose && (
+        <ConfirmDialog
+          title="Discard your changes?"
+          message="The status change you started has not been saved. If you close now, it will be lost."
+          confirmLabel="Discard"
+          onConfirm={onClose}
+          onCancel={() => setConfirmingClose(false)}
+        />
+      )}
+    </>
   )
 }
