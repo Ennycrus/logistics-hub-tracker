@@ -1,5 +1,7 @@
 ﻿# Logistics Hub Tracker
 
+[![Tests](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml)
+
 A web app for running one logistics hub's day: import gun-scanner files, track the delivery status of every shipment, and produce two accurate daily reports (**TEMU** and **Base**) in the company's 11-column format.
 
 Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyxl**.
@@ -130,3 +132,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 - The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never leaves your computer.
 - `DEBUG` is off unless `.env` turns it on.
 - The app is meant to run on your own computer. `runserver` is a development server, not for the public internet.
+
+## License
+
+[MIT](LICENSE) - free to use and adapt, with credit.
