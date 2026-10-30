@@ -128,10 +128,9 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Django REST Framework
 REST_FRAMEWORK = {
-    # You must be logged in to use the API.
+    # You must be logged in to use the API (the website's login session).
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',  # for Postman
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
