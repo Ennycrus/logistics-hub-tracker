@@ -135,4 +135,4 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 
 ## License
 
-[MIT](LICENSE) - free to use and adapt, with credit.
+All rights reserved - see [LICENSE](LICENSE). You may view the code, but not use, copy or sell it without permission.
