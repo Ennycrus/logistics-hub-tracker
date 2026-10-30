@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml)
 
-A web app for running one logistics hub's day: import gun-scanner files, track the delivery status of every shipment, and produce two accurate daily reports (**TEMU** and **Base**) in the company's 11-column format.
+A web app for running one logistics hub's day: import gun-scanner files, track the delivery status of every shipment, and produce two accurate daily reports (**TEMU** and **Base**) in the company's 11-column format, plus a weekly delivery summary.
 
 Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyxl**.
 
@@ -15,6 +15,7 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
 - **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
+- **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
 - **Dashboard, Pending list, Report history, Settings** - statuses and failure reasons are editable.
 - **Backup and reset commands** for safe day-to-day use.
@@ -35,24 +36,34 @@ Each report (TEMU or Base) only counts shipments of its own type.
 
 Rerouted shipments leave the hub and are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
 
-## Project structure
+## How the weekly delivery rate is calculated
+
+The delivery week runs **Monday to Saturday**, and only **finalized** reports are used, so the week always matches what was sent to the company.
+
+| Figure | Meaning |
+| --- | --- |
+| Daily rate | Delivered / Total Available for that day |
+| Delivered this week | Monday + ... + Saturday delivered |
+| Available this week | Monday's Old Pending + every Inbound from Monday to Saturday |
+| Weekly delivery rate | Delivered this week / Available this week |
+
+The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it
 hub-tracker/
 backend/ Django project
 config/ settings and URLs
 core/ hub settings, statuses, failure reasons, login
 shipments/ shipments, status history, scanner imports
-reports/ reporting days, calculations, reports, Excel export
+reports/ reporting days, calculations, reports, weekly summary, Excel export
 .env.example template for your private .env file
 requirements.txt
 frontend/ React app (Vite)
 src/api/client.js the one file that talks to Django
-src/pages/ Dashboard, Import, Shipments, Pending, Daily Report, History, Settings
+src/pages/ Dashboard, Import, Shipments, Pending, Daily Report, Weekly, History, Settings
 src/components/ layout, status editor, dialogs, Base/TEMU switch
 docs/
 DAILY_ROUTINE.md step-by-step daily guide
 
-
-The business rules live in `services/` folders (for example `shipments/services/status_service.py` and `reports/services/calculations.py`), so the API views stay thin.
+The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `reports/services/calculations.py` and `reports/services/weekly.py`), so the API views stay thin.
 
 ## Setup (Windows)
 
@@ -95,7 +106,7 @@ Open **http://localhost:5173** and log in.
 
 ## Daily use
 
-See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, back up.
+See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, back up, and check the weekly delivery on Saturday.
 
 ## Useful commands
 
@@ -105,7 +116,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
 | `python manage.py reset_data` | Deletes all shipments, imports and reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (221 tests) |
+| `python manage.py test` | Runs the test suite (231 tests) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -125,6 +136,8 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 | `POST /api/reports/<date>/correct/` | Start a corrected version |
 | `GET /api/reports/<date>/download/` | Excel file |
 | `GET /api/reports/` | Report history |
+| `GET /api/reports/weekly/?date=` | The Monday-Saturday week containing that date |
+| `GET /api/reports/weekly/download/?date=` | The week as an Excel file |
 
 ## Security notes
 

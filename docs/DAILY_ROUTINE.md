@@ -8,16 +8,16 @@ The app needs two terminals open in VS Code: one for Django, one for the website
 
 1. **Terminal 1, Django** (in the `backend` folder):
 
-    ```
+    ````
     venv\Scripts\activate
     python manage.py runserver
-    ```
+    ````
 
 2. **Terminal 2, website** (click **+** in the terminal panel, then go to the `frontend` folder):
 
-    ```
+    ````
     npm run dev
-    ```
+    ````
 
 3. Open **http://localhost:5173** and log in with your username and password.
 
@@ -72,17 +72,28 @@ A manual adjustment is only for a calculated figure you know is wrong; it needs 
 
 ## 6. Back up and shut down
 
-End every day with a backup; it takes a few seconds and the newest 30 copies are kept.
+A backup runs by itself every evening at 7 pm (and catches up when the laptop is next turned on). To make an extra one by hand:
 
 1. Open a third terminal in the `backend` folder, run `venv\Scripts\activate`, then:
 
-    ```
+    ````
     python manage.py backup_db
-    ```
+    ````
 
 2. Check it prints **Backup saved: ...**.
 3. Stop both servers with **Ctrl+C** in each terminal.
 4. Once a week, copy the `backend\backups` folder to Google Drive or a flash drive.
+
+## 7. Saturday: check the weekly delivery
+
+The delivery week runs Monday to Saturday, and its figures come only from finalized reports.
+
+1. After finalizing Saturday's TEMU and Base reports, go to **Weekly**.
+2. Pick **TEMU** or **Base** with the switch; use **Previous week** / **Next week** to move between weeks.
+3. Read **Delivered this week**, **Available this week** and **Weekly delivery rate**. If it says **Incomplete week**, finalize the missing days first.
+4. Click **Download weekly Excel** for each type if the company asks for it.
+
+Available = Monday's Old Pending + every Inbound from Monday to Saturday, so each shipment is counted once however many days it waited.
 
 ## Occasional tasks
 
@@ -108,3 +119,4 @@ End every day with a backup; it takes a few seconds and the newest 30 copies are
 | "Unknown command" or "No module named django" | Activate the venv first: `venv\Scripts\activate` in the `backend` folder. |
 | Check line says **Difference** instead of Balanced | Look for shipments without a result on **Pending**; do not finalize until it balances or you know why. |
 | "... report is finalized" when editing | Use **Start correction** instead. |
+| Weekly page says **Incomplete week** | Finalize the missing days on **Daily Report**, then refresh. |
