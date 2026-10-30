@@ -13,7 +13,7 @@ from .serializers import (
     ShipmentSerializer, StatusChangeSerializer,
 )
 from .services.excel_reader import preview_scan_file
-from .services.import_service import confirm_import, find_previous_import
+from .services.import_service import confirm_import, find_previous_import, undo_import
 from .services.status_service import bulk_change_status, change_status
 
 
@@ -218,8 +218,17 @@ class ImportBatchList(generics.ListAPIView):
     serializer_class = ImportBatchSerializer
 
 
-class ImportBatchDetail(generics.RetrieveAPIView):
-    """GET /api/imports/<id>/ -> one batch with every row and its result."""
+class ImportBatchDetail(generics.RetrieveDestroyAPIView):
+    """
+    GET    /api/imports/<id>/ -> one batch with every row and its result.
+    DELETE /api/imports/<id>/ -> undo the import: removes it and the shipments it created.
+                                 Refused (400, nothing deleted) if any of those shipments
+                                 has a status update or is in a finalized report.
+    """
 
     queryset = ImportBatch.objects.prefetch_related('rows')
     serializer_class = ImportBatchDetailSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        removed = undo_import(self.get_object())
+        return Response({'removed_shipments': removed})

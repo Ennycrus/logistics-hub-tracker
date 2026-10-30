@@ -127,6 +127,8 @@ export const imports = {
     }),
   list: (params) => request(`/imports/${query(params)}`),
   get: (id) => request(`/imports/${id}/`),
+  // Undo a wrong import: removes it and the shipments it created (refused if they were worked on).
+  undo: (id) => request(`/imports/${id}/`, { method: 'DELETE' }),
 }
 
 // --- Reports ---------------------------------------------------------------

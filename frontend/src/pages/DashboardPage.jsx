@@ -8,8 +8,8 @@ function today() {
 }
 
 /*
- * Today at a glance for one type (TEMU or Base): the day's figures, what still needs attention,
- * and quick links to the pages you use every day.
+ * Today at a glance for one type (TEMU or Base): the day's figures, this week's
+ * delivery rate, what still needs attention, and quick links to the pages you use every day.
  * All figures come from Django; nothing is calculated here.
  */
 export default function DashboardPage() {
@@ -17,16 +17,18 @@ export default function DashboardPage() {
   const [type, setType] = useShipmentType()
   const [report, setReport] = useState(null)
   const [lastImport, setLastImport] = useState(null)
+  const [week, setWeek] = useState(null) // this Monday-Saturday week, from finalized reports
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setLoading(true)
     setError('')
-    Promise.all([reports.get(date, type), imports.list()])
-      .then(([r, i]) => {
+    Promise.all([reports.get(date, type), imports.list(), reports.weekly(date, type)])
+      .then(([r, i, w]) => {
         setReport(r)
         setLastImport(i.results[0] ?? null)
+        setWeek(w)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -93,6 +95,32 @@ export default function DashboardPage() {
             "Not yet checked" shipments are counted in Remaining until you record their status.
           </p>
         )}
+      </div>
+
+      <div className="card">
+        <div className="title-row">
+          <h3>This week (Monday to Saturday)</h3>
+          <Link to="/weekly">Open Weekly →</Link>
+        </div>
+        <div className="stats">
+          <div className="stat">
+            <span className="stat-value">{week.totals.rate === null ? '—' : `${week.totals.rate}%`}</span>
+            <span className="stat-label">Weekly delivery rate</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">{week.totals.delivered}</span>
+            <span className="stat-label">Delivered so far</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">{6 - week.missing.length} / 6</span>
+            <span className="stat-label">Days finalized</span>
+          </div>
+        </div>
+        <p className="muted small">
+          {week.totals.rate === null
+            ? "The weekly rate appears once Monday's report is finalized."
+            : 'From finalized reports only, so today counts after you finalize it.'}
+        </p>
       </div>
 
       <div className="card">
