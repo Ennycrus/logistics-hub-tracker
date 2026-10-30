@@ -4,6 +4,8 @@ Reports API. Every URL uses the reporting date, e.g. /api/reports/2026-10-29/.
 Base and TEMU are separate reports. Add ?type=base or ?type=temu to any URL
 (TEMU is used when you leave it out), e.g. /api/reports/2026-10-29/?type=base
 
+Weekly delivery (Monday-Saturday): /api/reports/weekly/?date=2026-10-29&type=base
+
 The views stay thin: they check the input, call the report service,
 and return the result. All the rules live in services/report_service.py.
 """
@@ -17,6 +19,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.models import HubConfig
 from shipments.models import SHIPMENT_TYPE_CHOICES, TYPE_TEMU
 
 from .models import DailyReport, DailyShipmentRecord, ReportingDay
@@ -29,6 +32,7 @@ from .services.excel_export import export_file_name, export_report_bytes
 from .services.report_service import (
     current_report, finalize, get_or_create_draft, preview, save_draft, start_correction,
 )
+from .services.weekly import weekly_file_name, weekly_summary, weekly_workbook_bytes
 
 XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -229,3 +233,27 @@ class DayShipments(generics.ListAPIView):
         if search:
             records = records.filter(shipment__waybill_number__icontains=search)
         return records
+
+
+class WeeklySummary(APIView):
+    """
+    GET /api/reports/weekly/?date=2026-10-29&type=base
+        The Monday-Saturday delivery week containing that date (default: this week),
+        from finalized reports only.
+    """
+
+    def get(self, request):
+        date = parse_date(request.query_params.get('date') or str(timezone.localdate()))
+        return Response(weekly_summary(date, report_type(request)))
+
+
+class WeeklyDownload(APIView):
+    """GET /api/reports/weekly/download/?date=2026-10-29&type=base -> the week as an Excel file."""
+
+    def get(self, request):
+        date = parse_date(request.query_params.get('date') or str(timezone.localdate()))
+        summary = weekly_summary(date, report_type(request))
+        hub_name = HubConfig.get().hub_name
+        response = HttpResponse(weekly_workbook_bytes(summary, hub_name), content_type=XLSX_TYPE)
+        response['Content-Disposition'] = f'attachment; filename="{weekly_file_name(summary, hub_name)}"'
+        return response

@@ -10,6 +10,7 @@ import PendingPage from './pages/PendingPage'
 import ReportPage from './pages/ReportPage'
 import SettingsPage from './pages/SettingsPage'
 import ShipmentsPage from './pages/ShipmentsPage'
+import WeeklyPage from './pages/WeeklyPage'
 
 /*
  * The top of the app. It decides what to show:
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/shipments" element={<ShipmentsPage />} />
           <Route path="/pending" element={<PendingPage />} />
           <Route path="/report" element={<ReportPage />} />
+          <Route path="/weekly" element={<WeeklyPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* Any other address (including the home page) goes to the Dashboard. */}

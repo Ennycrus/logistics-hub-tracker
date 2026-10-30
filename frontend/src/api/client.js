@@ -149,6 +149,9 @@ export const reports = {
   // A plain link to this URL downloads the Excel file (the session cookie goes with it).
   downloadUrl: (date, version, type = 'temu') =>
     `/api/reports/${date}/download/${query({ type, version })}`,
+  // The Monday-Saturday week containing `date`, from finalized reports.
+  weekly: (date, type = 'temu') => request(`/reports/weekly/${query({ date, type })}`),
+  weeklyDownloadUrl: (date, type = 'temu') => `/api/reports/weekly/download/${query({ date, type })}`,
 }
 
 // --- Settings --------------------------------------------------------------
