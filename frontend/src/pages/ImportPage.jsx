@@ -25,7 +25,7 @@ const ROWS_PER_PAGE = 50
  *   2. Confirm  – Django saves the batch and creates the new shipments.
  * Each new waybill becomes TEMU (starts with 3034) or Base (starts with 1).
  * If some start with neither, you choose Base, TEMU or Skip before confirming.
- * Below that: the history of past imports.
+ * Below that: the history of past imports, each with an Undo button for a wrong import.
  */
 export default function ImportPage() {
   const [file, setFile] = useState(null)
@@ -38,7 +38,10 @@ export default function ImportPage() {
   const [busy, setBusy] = useState('')        // 'preview' | 'confirm' | ''
   const [error, setError] = useState('')
   const [done, setDone] = useState(null)      // the saved batch after confirming
+  const [undone, setUndone] = useState('')    // message after undoing an import
   const [asking, setAsking] = useState(false) // the "Import this file?" box is open
+  const [undoing, setUndoing] = useState(null) // the past import whose "Undo?" box is open
+  const [undoBusy, setUndoBusy] = useState(false)
 
   const [history, setHistory] = useState([])
 
@@ -52,6 +55,7 @@ export default function ImportPage() {
     setBusy('preview')
     setError('')
     setDone(null)
+    setUndone('')
     setUnknownType('')
     try {
       const result = await imports.preview(file, chosenColumn)
@@ -101,6 +105,23 @@ export default function ImportPage() {
     } finally {
       setBusy('')
       setAsking(false)
+    }
+  }
+
+  async function undo() {
+    if (undoBusy) return
+    setUndoBusy(true)
+    setError('')
+    setDone(null)
+    try {
+      const result = await imports.undo(undoing.id)
+      setUndone(`Import of ${undoing.file_name} undone: ${result.removed_shipments} shipment(s) removed.`)
+      loadHistory()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUndoBusy(false)
+      setUndoing(null)
     }
   }
 
@@ -158,6 +179,7 @@ export default function ImportPage() {
             <Link to="/shipments">Go to Shipments →</Link>
           </p>
         )}
+        {undone && <p className="success">{undone}</p>}
       </div>
 
       {preview && (
@@ -189,6 +211,23 @@ export default function ImportPage() {
         />
       )}
 
+      {undoing && (
+        <ConfirmDialog
+          title="Undo this import?"
+          message={`${undoing.file_name} · reporting date ${undoing.reporting_date}`}
+          items={[
+            { label: 'New TEMU shipments removed', value: undoing.temu_new_count },
+            { label: 'New Base shipments removed', value: undoing.base_new_count },
+            { label: 'Shipments already in the system (kept)', value: undoing.existing_outstanding_count + undoing.existing_closed_count, muted: true },
+          ]}
+          note="This cannot be reversed. It is refused if any of these shipments already has a status update or is in a finalized report."
+          confirmLabel="Undo import"
+          busy={undoBusy}
+          onConfirm={undo}
+          onCancel={() => setUndoing(null)}
+        />
+      )}
+
       <div className="card">
         <h2>Import history</h2>
         <div className="table-wrap">
@@ -205,6 +244,7 @@ export default function ImportPage() {
                 <th>Duplicate</th>
                 <th>Invalid</th>
                 <th>Imported at</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -220,10 +260,22 @@ export default function ImportPage() {
                   <td>{b.duplicate_in_file_count}</td>
                   <td>{b.invalid_count}</td>
                   <td className="small">{new Date(b.imported_at).toLocaleString()}</td>
+                  <td>
+                    <button
+                      className="secondary small-button"
+                      onClick={() => {
+                        setUndone('')
+                        setError('')
+                        setUndoing(b)
+                      }}
+                    >
+                      Undo
+                    </button>
+                  </td>
                 </tr>
               ))}
               {history.length === 0 && (
-                <tr><td colSpan="10" className="muted">No imports yet.</td></tr>
+                <tr><td colSpan="11" className="muted">No imports yet.</td></tr>
               )}
             </tbody>
           </table>

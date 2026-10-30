@@ -15,6 +15,9 @@ What happens to each row on confirm:
                            kept in the batch so you can review it
   duplicate_in_file     -> recorded only
   invalid               -> recorded only
+
+Undo (undo_import): removes a wrong import and ONLY the shipments it created.
+Shipments that were already in the system are never touched.
 """
 
 import hashlib
@@ -23,7 +26,7 @@ from io import BytesIO
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from ..models import ImportBatch, ImportRow, Shipment
+from ..models import ImportBatch, ImportRow, Shipment, StatusHistory
 from .excel_reader import preview_scan_file
 from .status_service import create_shipment
 
@@ -135,3 +138,61 @@ def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx
     # bulk_create = one INSERT for all rows instead of one per row.
     ImportRow.objects.bulk_create(import_rows)
     return batch
+
+
+def undo_blockers(batch):
+    """
+    Reasons this import cannot be undone (an empty list means it can).
+    An undo must never change numbers you already worked on or sent.
+    """
+    # Imported here to avoid a circular import (reports imports shipments).
+    from reports.models import DailyShipmentRecord
+
+    created = Shipment.objects.filter(import_rows__batch=batch, import_rows__result=ImportRow.RESULT_NEW)
+    blockers = []
+
+    updated = [s.waybill_number for s in created if s.history.count() > 1]
+    if updated:
+        blockers.append(
+            f'{len(updated)} shipment(s) from this import already have a status update '
+            f'(e.g. {updated[0]}).'
+        )
+
+    in_final = (
+        DailyShipmentRecord.objects
+        .filter(shipment__in=created, day__state='finalized')
+        .order_by('day__date')  # clear the default sort, or distinct() keeps duplicates
+        .values_list('day__date', flat=True).distinct()
+    )
+    if in_final:
+        dates = ', '.join(f'{d:%d %b %Y}' for d in in_final)
+        blockers.append(f'Shipments from this import are in a finalized report ({dates}).')
+
+    if ImportRow.objects.filter(shipment__in=created).exclude(batch=batch).exists():
+        blockers.append('Shipments from this import appear in a later import. Undo that import first.')
+
+    return blockers
+
+
+@transaction.atomic
+def undo_import(batch):
+    """
+    Delete an import and the shipments it created. All or nothing.
+    Raises ValidationError (and deletes nothing) if undo_blockers() finds a reason not to.
+    Returns how many shipments were removed.
+    """
+    from reports.models import DailyShipmentRecord
+
+    batch = ImportBatch.objects.select_for_update().get(pk=batch.pk)
+    blockers = undo_blockers(batch)
+    if blockers:
+        raise ValidationError(['This import cannot be undone:'] + blockers)
+
+    created_ids = list(
+        batch.rows.filter(result=ImportRow.RESULT_NEW).values_list('shipment_id', flat=True)
+    )
+    batch.delete()  # also deletes its rows
+    DailyShipmentRecord.objects.filter(shipment_id__in=created_ids).delete()  # open days only (checked above)
+    StatusHistory.objects.filter(shipment_id__in=created_ids).delete()
+    Shipment.objects.filter(pk__in=created_ids).delete()
+    return len(created_ids)
