@@ -1,0 +1,29 @@
+﻿# ---- Secrets: NEVER upload ----
+.env
+*.env
+!.env.example
+
+# ---- Your real data: NEVER upload ----
+*.sqlite3
+backend/backups/
+*.xlsx
+
+# ---- Python ----
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# ---- Node / React ----
+node_modules/
+frontend/dist/
+
+# ---- Editors and system files ----
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# ---- Exported files with real data ----
+*.pdf
+*.csv
