@@ -18,6 +18,7 @@ const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
 
 /*
  * The shipments table: search by waybill, filter by status and type, 50 rows per page.
+ * Typing exactly 4 digits finds waybills ENDING with them (the last four).
  * Click a waybill number to see its details, notes and history.
  * Click "Update" on a row to change its status, or tick several rows and
  * use "Update selected" to change them all at once.
@@ -114,7 +115,7 @@ export default function ShipmentsPage() {
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Search waybill number…"
+          placeholder="Search waybill number… (4 digits = last four)"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)

@@ -135,7 +135,7 @@ export default function PendingPage() {
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Search waybill number…"
+          placeholder="Search waybill number… (4 digits = last four)"
           value={search}
           onChange={(e) => change(setSearch)(e.target.value)}
         />
