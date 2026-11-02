@@ -20,6 +20,7 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
 - **Pending list, Report history, Settings** - statuses and failure reasons are editable.
+- **Automatic log-out** - after 15 minutes without activity you must log in again.
 - **Backup and reset commands** for safe day-to-day use.
 
 ## How the report figures are calculated
@@ -120,7 +121,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
 | `python manage.py reset_data` | Deletes all shipments, imports and reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (239 tests) |
+| `python manage.py test` | Runs the test suite (243 tests) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -150,6 +151,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 - The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never leaves your computer.
 - `DEBUG` is off unless `.env` turns it on.
 - Only the website's login session can reach the API, and Excel files are read with `defusedxml` protection.
+- After **15 minutes without activity** you are logged out, both on the website and on the server. Change `IDLE_TIMEOUT_MINUTES` in `settings.py` to adjust it.
 - The app is meant to run on your own computer. `runserver` is a development server, not for the public internet.
 
 ## License
