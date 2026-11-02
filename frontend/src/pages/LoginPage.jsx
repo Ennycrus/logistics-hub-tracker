@@ -4,8 +4,9 @@ import { auth } from '../api/client'
 /*
  * The login screen. Uses your Django admin username and password.
  * onLoggedIn(user) tells App that login worked, so it can show the app.
+ * notice: an optional message, e.g. why you were logged out.
  */
-export default function LoginPage({ onLoggedIn }) {
+export default function LoginPage({ onLoggedIn, notice }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -32,6 +33,7 @@ export default function LoginPage({ onLoggedIn }) {
       <form className="card login-card" onSubmit={handleSubmit}>
         <h1>Hub Tracker</h1>
         <p className="muted">Log in with your admin account.</p>
+        {notice && <p className="notice">{notice}</p>}
 
         <label>
           Username

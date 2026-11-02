@@ -126,6 +126,14 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 
+# Log out after this many minutes without activity. Every request to Django
+# restarts the clock, so you are only logged out when you really stop using it.
+# The website reads this number from /api/auth/me/ and logs out at the same time.
+IDLE_TIMEOUT_MINUTES = 15
+SESSION_COOKIE_AGE = IDLE_TIMEOUT_MINUTES * 60
+SESSION_SAVE_EVERY_REQUEST = True
+
+
 # Django REST Framework
 REST_FRAMEWORK = {
     # You must be logged in to use the API (the website's login session).

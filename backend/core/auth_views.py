@@ -10,8 +10,12 @@ How it works:
 
 The CSRF token proves a request really came from your own page,
 not from another website trying to act as you.
+
+After IDLE_TIMEOUT_MINUTES (settings.py) without any request, the session
+expires and you must log in again.
 """
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -22,9 +26,10 @@ from rest_framework.views import APIView
 
 
 def user_data(user):
+    timeout = settings.IDLE_TIMEOUT_MINUTES
     if not user.is_authenticated:
-        return {'authenticated': False, 'username': None}
-    return {'authenticated': True, 'username': user.get_username()}
+        return {'authenticated': False, 'username': None, 'idle_timeout_minutes': timeout}
+    return {'authenticated': True, 'username': user.get_username(), 'idle_timeout_minutes': timeout}
 
 
 class LoginSerializer(serializers.Serializer):
