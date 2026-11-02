@@ -6,6 +6,8 @@
  *
  * Errors: if Django answers with an error, these functions throw an ApiError
  * whose .message is Django's "error" text and .details its field errors.
+ * If Django says you are no longer logged in, an "auth:expired" event tells
+ * App to show the login page.
  */
 
 export class ApiError extends Error {
@@ -56,6 +58,11 @@ async function request(path, { method = 'GET', body, form } = {}) {
 
   const data = await response.json().catch(() => null)
   if (!response.ok) {
+    // The server logged you out (e.g. after the idle timeout): tell App to show the login page.
+    const loggedOut = response.status === 401
+      || (response.status === 403 && /Authentication credentials/.test(data?.error ?? ''))
+    if (loggedOut) window.dispatchEvent(new Event('auth:expired'))
+
     // Django's CSRF refusal is an HTML page, not JSON, so give it a clear message.
     const fallback = response.status === 403
       ? 'Security check failed. Refresh the page and try again.'
