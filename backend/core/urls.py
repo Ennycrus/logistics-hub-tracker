@@ -7,6 +7,7 @@ urlpatterns = [
     path('auth/me/', auth_views.MeView.as_view(), name='auth-me'),
     path('auth/login/', auth_views.LoginView.as_view(), name='auth-login'),
     path('auth/logout/', auth_views.LogoutView.as_view(), name='auth-logout'),
+    path('auth/change-password/', auth_views.ChangePasswordView.as_view(), name='auth-change-password'),
 
     path('statuses/', views.StatusOptionList.as_view(), name='status-list'),
     path('reasons/', views.FailureReasonList.as_view(), name='reason-list'),
