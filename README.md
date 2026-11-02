@@ -11,52 +11,11 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Scanner import with preview** - finds the waybill column automatically, flags duplicates, invalid rows and already-closed shipments. The same file can never be imported twice.
 - **Undo a wrong import** - removes the import and only the shipments it created. Refused if any of them already has a status update, is in a finalized report, or appears in a later import.
 - **Two shipment types, sorted by waybill prefix** - `3034...` = TEMU, `1...` = Base. Waybills with any other prefix make the import ask: Base, TEMU or Skip.
-- **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
-- **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
-- **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
-- **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
-- **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
-- **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
-- **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
-- **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
-- **Pending list, Report history, Settings** - statuses and failure reasons are editable.
-- **Automatic log-out** - after 15 minutes without activity you must log in again.
-- **Backup and reset commands** for safe day-to-day use.
-
-## How the report figures are calculated
-
-Each report (TEMU or Base) only counts shipments of its own type.
-
-| Figure | Meaning |
-| --- | --- |
-| Inbound | Shipments first scanned on this date |
-| Old Pending | Shipments first scanned earlier and still at the hub at the end of the previous day |
-| Total Available | Inbound + Old Pending |
-| Delivered | Delivered on this date |
-| Current Day | Still at the hub at the end of the day (not checked, outstanding or returned) |
-| Return | Returned to the hub (also counted inside Current Day) |
-| Reasons | Failure reasons grouped with counts, e.g. "Customer unavailable - 3" |
-
-Rerouted shipments leave the hub and are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
-
-## How the weekly delivery rate is calculated
-
-The delivery week runs **Monday to Saturday**, and only **finalized** reports are used, so the week always matches what was sent to the company.
-
-| Figure | Meaning |
-| --- | --- |
-| Daily rate | Delivered / Total Available for that day |
-| Delivered this week | Monday + ... + Saturday delivered |
-| Available this week | Monday's Old Pending + every Inbound from Monday to Saturday |
-| Weekly delivery rate | Delivered this week / Available this week |
-
-The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it three times. Days that are not finalized are shown as missing, and without Monday there is no weekly rate.
-
-## Project structure
+- **Status tracking
 hub-tracker/
 backend/ Django project
 config/ settings and URLs
-core/ hub settings, statuses, failure reasons, login
+core/ hub settings, statuses, failure reasons, login and passwords
 shipments/ shipments, status history, scanner imports and undo
 reports/ reporting days, calculations, reports, weekly summary, Excel export
 .env.example template for your private .env file
@@ -121,7 +80,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
 | `python manage.py reset_data` | Deletes all shipments, imports and reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (243 tests) |
+| `python manage.py test` | Runs the test suite (254 tests) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -144,6 +103,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 | `GET /api/reports/` | Report history |
 | `GET /api/reports/weekly/?date=` | The Monday-Saturday week containing that date |
 | `GET /api/reports/weekly/download/?date=` | The week as an Excel file |
+| `POST /api/auth/change-password/` | Change your password (needs the current one) |
 
 ## Security notes
 
@@ -151,7 +111,9 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 - The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never leaves your computer.
 - `DEBUG` is off unless `.env` turns it on.
 - Only the website's login session can reach the API, and Excel files are read with `defusedxml` protection.
-- After **15 minutes without activity** you are logged out, both on the website and on the server. Change `IDLE_TIMEOUT_MINUTES` in `settings.py` to adjust it.
+- After **15 minutes without activity** you are logged out, both on the website and on the server. Logging out also ends the session on the server. Change `IDLE_TIMEOUT_MINUTES` in `settings.py` to adjust it.
+- After **5 wrong passwords**, login for that username is locked for **5 minutes**, even with the right password. Adjust with `LOGIN_MAX_ATTEMPTS` and `LOGIN_LOCKOUT_MINUTES` in `settings.py`. Restarting Django also clears the lock.
+- Passwords can be changed from **Settings**; new passwords must pass Django's password rules (length, not common, not only numbers, not like the username).
 - The app is meant to run on your own computer. `runserver` is a development server, not for the public internet.
 
 ## License
