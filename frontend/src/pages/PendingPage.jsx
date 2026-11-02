@@ -15,19 +15,23 @@ const TABS = [
   { value: '', label: 'All' },
 ]
 
+// "pending" = still at the hub (not yet checked, outstanding or returned). It is the default,
+// so delivered and rerouted shipments only show when you choose to see them.
 const CATEGORY_FILTERS = [
-  { value: '', label: 'All statuses' },
+  { value: 'pending', label: 'Pending only (still at hub)' },
   { value: 'unchecked', label: 'Not yet checked' },
   { value: 'outstanding', label: 'Outstanding' },
-  { value: 'delivered', label: 'Delivered' },
   { value: 'returned', label: 'Returned to hub' },
-  { value: 'left_hub', label: 'Left the hub' },
+  { value: '', label: 'Show delivered too (everything)' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'left_hub', label: 'Left the hub (rerouted)' },
 ]
 
 const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
 
 /*
  * The shipments in one day's report (TEMU or Base), to review before finalizing.
+ * Shows only shipments still pending at the hub, unless you choose "Show delivered too".
  * Old Pending is listed longest-waiting first.
  * Status shown is each shipment's CURRENT status.
  */
@@ -35,7 +39,7 @@ export default function PendingPage() {
   const [date, setDate] = useState(today())
   const [type, setType] = useShipmentType()
   const [kind, setKind] = useState('old_pending')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState('pending')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
@@ -148,7 +152,9 @@ export default function PendingPage() {
       {message && <p className="success">{message}</p>}
 
       <p className="muted">
-        {loading ? 'Loading…' : `${data.count} shipment(s) in the ${date} ${typeLabel(type)} report`}
+        {loading
+          ? 'Loading…'
+          : `${data.count} ${category === 'pending' ? 'pending ' : ''}shipment(s) in the ${date} ${typeLabel(type)} report`}
         {' · '}<Link to="/report">Open the daily report →</Link>
       </p>
 
