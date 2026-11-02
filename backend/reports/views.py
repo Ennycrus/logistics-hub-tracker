@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 
 from core.models import HubConfig
 from shipments.models import SHIPMENT_TYPE_CHOICES, TYPE_TEMU
+from shipments.services.search import waybill_search
 
 from .models import DailyReport, DailyShipmentRecord, ReportingDay
 from .serializers import (
@@ -206,7 +207,7 @@ class DayShipments(generics.ListAPIView):
         ?type=base | temu   (TEMU if left out)
         ?kind=old_pending | inbound
         ?category=unchecked | outstanding | delivered | returned | left_hub
-        ?search=3034915
+        ?search=3584    (exactly 4 digits: waybill ends with them; otherwise: contains)
     Old Pending is sorted longest-waiting first.
     """
 
@@ -229,9 +230,9 @@ class DayShipments(generics.ListAPIView):
             records = records.filter(kind=params['kind'])
         if params.get('category'):
             records = records.filter(shipment__status__category=params['category'])
-        search = params.get('search', '').strip()
+        search = waybill_search(params.get('search'), field='shipment__waybill_number')
         if search:
-            records = records.filter(shipment__waybill_number__icontains=search)
+            records = records.filter(search)
         return records
 
 

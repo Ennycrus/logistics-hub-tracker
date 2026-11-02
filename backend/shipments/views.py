@@ -1,6 +1,5 @@
 from io import BytesIO
 
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -14,6 +13,7 @@ from .serializers import (
 )
 from .services.excel_reader import preview_scan_file
 from .services.import_service import confirm_import, find_previous_import, undo_import
+from .services.search import waybill_search
 from .services.status_service import bulk_change_status, change_status
 
 
@@ -22,7 +22,7 @@ class ShipmentList(generics.ListAPIView):
     GET /api/shipments/
 
     Optional filters (combine as you like):
-        ?search=TEMU00      waybill contains this text
+        ?search=3584        exactly 4 digits: waybill ends with them; otherwise: contains the text
         ?status=3           a status id
         ?category=unchecked a status category (e.g. to find what still needs checking)
         ?type=base          only Base shipments (or ?type=temu)
@@ -35,9 +35,9 @@ class ShipmentList(generics.ListAPIView):
         queryset = Shipment.objects.select_related('status', 'failure_reason').order_by('waybill_number')
         params = self.request.query_params
 
-        search = params.get('search', '').strip()
+        search = waybill_search(params.get('search'))
         if search:
-            queryset = queryset.filter(Q(waybill_number__icontains=search))
+            queryset = queryset.filter(search)
         if params.get('status'):
             queryset = queryset.filter(status_id=params['status'])
         if params.get('category'):
