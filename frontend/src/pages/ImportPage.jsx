@@ -19,6 +19,12 @@ const RESULTS = {
 
 const ROWS_PER_PAGE = 50
 
+// Same rule as Django: exactly 4 digits = waybill ends with them; anything else = contains it.
+function matchesWaybill(waybill, term) {
+  if (!term) return true
+  return /^\d{4}$/.test(term) ? waybill.endsWith(term) : waybill.toLowerCase().includes(term.toLowerCase())
+}
+
 /*
  * Import a gun-scanner file in two steps:
  *   1. Preview  – Django reads the file and classifies every row. Nothing is saved.
@@ -294,9 +300,9 @@ function PreviewPanel({
   const [page, setPage] = useState(1)
 
   const rows = useMemo(() => {
-    const term = search.trim().toLowerCase()
+    const term = search.trim()
     return preview.rows.filter(
-      (r) => (!term || r.waybill.toLowerCase().includes(term)) && (!resultFilter || r.result === resultFilter),
+      (r) => matchesWaybill(r.waybill, term) && (!resultFilter || r.result === resultFilter),
     )
   }, [preview, search, resultFilter])
 
@@ -373,7 +379,7 @@ function PreviewPanel({
           <div className="toolbar">
             <input
               type="search"
-              placeholder="Search waybill…"
+              placeholder="Search waybill… (4 digits = last four)"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
