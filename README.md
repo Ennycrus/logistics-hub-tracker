@@ -11,7 +11,48 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Scanner import with preview** - finds the waybill column automatically, flags duplicates, invalid rows and already-closed shipments. The same file can never be imported twice.
 - **Undo a wrong import** - removes the import and only the shipments it created. Refused if any of them already has a status update, is in a finalized report, or appears in a later import.
 - **Two shipment types, sorted by waybill prefix** - `3034...` = TEMU, `1...` = Base. Waybills with any other prefix make the import ask: Base, TEMU or Skip.
-- **Status tracking
+- **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
+- **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
+- **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
+- **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
+- **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
+- **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
+- **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
+- **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
+- **Pending list, Report history, Settings** - statuses and failure reasons are editable.
+- **Login protection** - automatic log-out after 15 minutes without activity, login locked for 5 minutes after 5 wrong passwords, and a Change password form in Settings.
+- **Backup and reset commands** for safe day-to-day use.
+
+## How the report figures are calculated
+
+Each report (TEMU or Base) only counts shipments of its own type.
+
+| Figure | Meaning |
+| --- | --- |
+| Inbound | Shipments first scanned on this date |
+| Old Pending | Shipments first scanned earlier and still at the hub at the end of the previous day |
+| Total Available | Inbound + Old Pending |
+| Delivered | Delivered on this date |
+| Current Day | Still at the hub at the end of the day (not checked, outstanding or returned) |
+| Return | Returned to the hub (also counted inside Current Day) |
+| Reasons | Failure reasons grouped with counts, e.g. "Customer unavailable - 3" |
+
+Rerouted shipments leave the hub and are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
+
+## How the weekly delivery rate is calculated
+
+The delivery week runs **Monday to Saturday**, and only **finalized** reports are used, so the week always matches what was sent to the company.
+
+| Figure | Meaning |
+| --- | --- |
+| Daily rate | Delivered / Total Available for that day |
+| Delivered this week | Monday + ... + Saturday delivered |
+| Available this week | Monday's Old Pending + every Inbound from Monday to Saturday |
+| Weekly delivery rate | Delivered this week / Available this week |
+
+The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it three times. Days that are not finalized are shown as missing, and without Monday there is no weekly rate.
+
+## Project structure
 hub-tracker/
 backend/ Django project
 config/ settings and URLs
