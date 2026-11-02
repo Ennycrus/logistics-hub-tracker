@@ -53,20 +53,23 @@ The delivery week runs **Monday to Saturday**, and only **finalized** reports ar
 The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it three times. Days that are not finalized are shown as missing, and without Monday there is no weekly rate.
 
 ## Project structure
+
+```
 hub-tracker/
-backend/ Django project
-config/ settings and URLs
-core/ hub settings, statuses, failure reasons, login and passwords
-shipments/ shipments, status history, scanner imports and undo
-reports/ reporting days, calculations, reports, weekly summary, Excel export
-.env.example template for your private .env file
-requirements.txt
-frontend/ React app (Vite)
-src/api/client.js the one file that talks to Django
-src/pages/ Dashboard, Import, Shipments, Pending, Daily Report, Weekly, History, Settings
-src/components/ layout, status editor, dialogs, Base/TEMU switch
-docs/
-DAILY_ROUTINE.md step-by-step daily guide
+  backend/                 Django project
+    config/                settings and URLs
+    core/                  hub settings, statuses, failure reasons, login and passwords
+    shipments/             shipments, status history, scanner imports and undo
+    reports/               reporting days, calculations, reports, weekly summary, Excel export
+    .env.example           template for your private .env file
+    requirements.txt
+  frontend/                React app (Vite)
+    src/api/client.js      the one file that talks to Django
+    src/pages/             Dashboard, Import, Shipments, Pending, Daily Report, Weekly, History, Settings
+    src/components/        layout, status editor, dialogs, Base/TEMU switch
+  docs/
+    DAILY_ROUTINE.md       step-by-step daily guide
+```
 
 The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py` and `reports/services/weekly.py`), so the API views stay thin.
 
