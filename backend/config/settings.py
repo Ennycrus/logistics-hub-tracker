@@ -133,6 +133,11 @@ IDLE_TIMEOUT_MINUTES = 15
 SESSION_COOKIE_AGE = IDLE_TIMEOUT_MINUTES * 60
 SESSION_SAVE_EVERY_REQUEST = True
 
+# Wrong passwords: after this many failed logins for one username, login is
+# locked for that username for LOGIN_LOCKOUT_MINUTES. A correct login resets it.
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_MINUTES = 5
+
 
 # Django REST Framework
 REST_FRAMEWORK = {

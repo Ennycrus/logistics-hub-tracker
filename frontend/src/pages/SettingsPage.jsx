@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { settings } from '../api/client'
+import { auth, settings } from '../api/client'
 
 // Matches the categories in Django (core/models.py).
 const CATEGORIES = [
@@ -25,7 +25,7 @@ const REASON_FIELDS = [
 ]
 
 /*
- * Settings: hub name and report options, statuses, and failure reasons.
+ * Settings: hub name and report options, statuses, failure reasons, and your password.
  * Nothing is deleted: switch a status or reason off instead, so old records stay intact.
  */
 export default function SettingsPage() {
@@ -50,7 +50,80 @@ export default function SettingsPage() {
         create={settings.createReason}
         update={settings.updateReason}
       />
+      <PasswordSection />
     </>
+  )
+}
+
+/* Change your login password. Django checks the current one and the password rules. */
+function PasswordSection() {
+  const blank = { current: '', next: '', confirm: '' }
+  const [form, setForm] = useState(blank)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [message, setMessage] = useState('')
+
+  // Typing clears the old messages, so they never describe a password you already changed.
+  const set = (field) => (e) => {
+    setForm({ ...form, [field]: e.target.value })
+    setFieldErrors({})
+    setError('')
+    setMessage('')
+  }
+  const mismatch = form.confirm !== '' && form.next !== form.confirm
+  const fieldError = (name) => fieldErrors[name]?.join(' ')
+
+  async function save(event) {
+    event.preventDefault()
+    if (busy || mismatch) return
+    setBusy(true)
+    setError('')
+    setFieldErrors({})
+    setMessage('')
+    try {
+      await auth.changePassword(form.current, form.next)
+      setForm(blank)
+      setMessage('Password changed. Use the new password next time you log in.')
+    } catch (err) {
+      setError(err.message)
+      setFieldErrors(err.details || {})
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={save}>
+      <h2>Change password</h2>
+      <p className="muted small">
+        At least 8 characters, not too common, not only numbers, and not like your username.
+      </p>
+      <div className="form-row">
+        <label className="grow">
+          Current password
+          <input type="password" autoComplete="current-password" value={form.current} onChange={set('current')} required />
+          {fieldError('current_password') && <span className="field-error">{fieldError('current_password')}</span>}
+        </label>
+        <label className="grow">
+          New password
+          <input type="password" autoComplete="new-password" value={form.next} onChange={set('next')} required />
+          {fieldError('new_password') && <span className="field-error">{fieldError('new_password')}</span>}
+        </label>
+        <label className="grow">
+          Repeat new password
+          <input type="password" autoComplete="new-password" value={form.confirm} onChange={set('confirm')} required />
+          {mismatch && <span className="field-error">The two new passwords don't match.</span>}
+        </label>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {message && <p className="success">{message}</p>}
+      <div className="actions">
+        <button type="submit" disabled={busy || mismatch || !form.current || !form.next || !form.confirm}>
+          {busy ? 'Saving…' : 'Change password'}
+        </button>
+      </div>
+    </form>
   )
 }
 
