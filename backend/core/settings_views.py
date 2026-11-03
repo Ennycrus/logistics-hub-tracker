@@ -16,7 +16,8 @@ from .serializers import HubConfigSerializer, ReasonSettingsSerializer, StatusSe
 class HubSettings(APIView):
     """
     GET   /api/settings/hub/
-    PATCH /api/settings/hub/   {"hub_name": "...", "reasons_format": "grouped" | "text"}
+    PATCH /api/settings/hub/   {"hub_name": "...", "reasons_format": "grouped" | "text",
+                                "tracking_url": "https://.../track?waybill={waybill}"}
     """
 
     def get(self, request):

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { options, shipments } from '../api/client'
+import { options, settings, shipments } from '../api/client'
 import ShipmentDetails from '../components/ShipmentDetails'
 import StatusEditor from '../components/StatusEditor'
+import TrackLink from '../components/TrackLink'
 import { TYPES, typeLabel } from '../components/TypeSwitch'
 
 // Matches the status categories in Django (core/models.py).
@@ -20,6 +21,7 @@ const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
  * The shipments table: search by waybill, filter by status and type, 50 rows per page.
  * Typing exactly 4 digits finds waybills ENDING with them (the last four).
  * Click a waybill number to see its details, notes and history.
+ * Click "Track" to open the company's tracking page for that waybill (set the address in Settings).
  * Click "Update" on a row to change its status, or tick several rows and
  * use "Update selected" to change them all at once.
  */
@@ -35,6 +37,7 @@ export default function ShipmentsPage() {
 
   const [statuses, setStatuses] = useState([])
   const [reasons, setReasons] = useState([])
+  const [trackingUrl, setTrackingUrl] = useState('') // from Settings; empty = no Track buttons
   const [editing, setEditing] = useState(null)     // the shipment being updated, or null
   const [selectedIds, setSelectedIds] = useState([]) // ticked rows (this page only)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -43,12 +46,13 @@ export default function ShipmentsPage() {
   const [message, setMessage] = useState('')       // "Saved" confirmation
   const [reloadKey, setReloadKey] = useState(0)    // change it to reload the table
 
-  // Load the dropdown options once.
+  // Load the dropdown options and the tracking page address once.
   useEffect(() => {
-    Promise.all([options.statuses(), options.reasons()])
-      .then(([s, r]) => {
+    Promise.all([options.statuses(), options.reasons(), settings.hub()])
+      .then(([s, r, hub]) => {
         setStatuses(s)
         setReasons(r)
+        setTrackingUrl(hub.tracking_url)
       })
       .catch((err) => setError(err.message))
   }, [])
@@ -212,7 +216,8 @@ export default function ShipmentsPage() {
                 </td>
                 <td>{s.notes || '—'}</td>
                 <td className="small">{new Date(s.updated_at).toLocaleString()}</td>
-                <td>
+                <td className="row-actions">
+                  <TrackLink template={trackingUrl} waybill={s.waybill_number} />
                   <button
                     className="secondary small-button"
                     onClick={() => {

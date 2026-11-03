@@ -22,13 +22,25 @@ class FailureReasonSerializer(serializers.ModelSerializer):
 class HubConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = HubConfig
-        fields = ['hub_name', 'reasons_format', 'updated_at']
+        fields = ['hub_name', 'reasons_format', 'tracking_url', 'updated_at']
         read_only_fields = ['updated_at']
 
     def validate_hub_name(self, value):
         value = value.strip()
         if not value:
             raise serializers.ValidationError('Hub name cannot be empty.')
+        return value
+
+    def validate_tracking_url(self, value):
+        """Empty, or a normal web address containing {waybill}."""
+        value = value.strip()
+        if not value:
+            return ''
+        # Only http(s) links: anything else (e.g. "javascript:") could run code when clicked.
+        if not value.lower().startswith(('https://', 'http://')):
+            raise serializers.ValidationError('The address must start with https:// (or http://).')
+        if '{waybill}' not in value:
+            raise serializers.ValidationError('Put {waybill} where the waybill number goes in the address.')
         return value
 
 
