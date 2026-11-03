@@ -2,11 +2,6 @@ from django.db import models
 
 
 class HubConfig(models.Model):
-    """
-    Settings for the single hub this app manages.
-    There is only ever ONE row in this table (a "singleton").
-    """
-
     REASONS_FORMAT_GROUPED = 'grouped'
     REASONS_FORMAT_TEXT = 'text'
     REASONS_FORMAT_CHOICES = [
@@ -20,6 +15,9 @@ class HubConfig(models.Model):
         choices=REASONS_FORMAT_CHOICES,
         default=REASONS_FORMAT_GROUPED,
     )
+    # The company's tracking page, with {waybill} where the number goes, e.g.
+    # https://example.com/track?waybill={waybill}. Empty = no Track buttons.
+    tracking_url = models.CharField(max_length=500, blank=True, default='')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -27,13 +25,11 @@ class HubConfig(models.Model):
         verbose_name_plural = 'Hub configuration'
 
     def save(self, *args, **kwargs):
-        # Force every save onto row id=1, so a second row can never exist.
         self.pk = 1
         super().save(*args, **kwargs)
 
     @classmethod
     def get(cls):
-        """Return the single config row, creating it if it doesn't exist yet."""
         config, _ = cls.objects.get_or_create(pk=1, defaults={'hub_name': 'My Hub'})
         return config
 
@@ -42,11 +38,6 @@ class HubConfig(models.Model):
 
 
 class StatusOption(models.Model):
-    """
-    A shipment status you can pick from the dropdown.
-    The report maths uses `category`, never the name.
-    """
-
     CATEGORY_UNCHECKED = 'unchecked'
     CATEGORY_OUTSTANDING = 'outstanding'
     CATEGORY_DELIVERED = 'delivered'
@@ -62,11 +53,8 @@ class StatusOption(models.Model):
 
     name = models.CharField(max_length=60, unique=True)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
-    # If True, picking this status forces you to choose a FailureReason.
     requires_reason = models.BooleanField(default=False)
-    # Controls the order in the dropdown (lower number = higher in list).
     sort_order = models.PositiveIntegerField(default=0)
-    # Instead of deleting a status (which would damage history), switch it off.
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -77,11 +65,6 @@ class StatusOption(models.Model):
 
 
 class FailureReason(models.Model):
-    """
-    A reason for an unsuccessful delivery.
-    If `is_other` is True, a written explanation is required.
-    """
-
     name = models.CharField(max_length=100, unique=True)
     is_other = models.BooleanField(default=False)
     sort_order = models.PositiveIntegerField(default=0)

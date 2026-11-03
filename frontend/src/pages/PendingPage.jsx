@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { options, reports } from '../api/client'
+import { options, reports, settings } from '../api/client'
 import ShipmentDetails from '../components/ShipmentDetails'
 import StatusEditor from '../components/StatusEditor'
+import TrackLink from '../components/TrackLink'
 import TypeSwitch, { typeLabel, useShipmentType } from '../components/TypeSwitch'
 
 function today() {
@@ -51,15 +52,17 @@ export default function PendingPage() {
 
   const [statuses, setStatuses] = useState([])
   const [reasons, setReasons] = useState([])
+  const [trackingUrl, setTrackingUrl] = useState('') // from Settings; empty = no Track buttons
   const [editing, setEditing] = useState(null)
   const [detailsId, setDetailsId] = useState(null)
   const [detailsVersion, setDetailsVersion] = useState(0)
 
   useEffect(() => {
-    Promise.all([options.statuses(), options.reasons()])
-      .then(([s, r]) => {
+    Promise.all([options.statuses(), options.reasons(), settings.hub()])
+      .then(([s, r, hub]) => {
         setStatuses(s)
         setReasons(r)
+        setTrackingUrl(hub.tracking_url)
       })
       .catch((err) => setError(err.message))
   }, [])
@@ -193,7 +196,8 @@ export default function PendingPage() {
                     {s.reason_note && <div className="muted small">{s.reason_note}</div>}
                   </td>
                   <td>{s.notes || '—'}</td>
-                  <td>
+                  <td className="row-actions">
+                    <TrackLink template={trackingUrl} waybill={s.waybill_number} />
                     <button
                       className="secondary small-button"
                       onClick={() => {

@@ -145,7 +145,9 @@ function HubSection() {
 
   if (!form) return <div className="card">{error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}</div>
 
-  const dirty = form.hub_name !== saved.hub_name || form.reasons_format !== saved.reasons_format
+  const dirty = form.hub_name !== saved.hub_name
+    || form.reasons_format !== saved.reasons_format
+    || form.tracking_url !== saved.tracking_url
 
   async function save(event) {
     event.preventDefault()
@@ -154,7 +156,11 @@ function HubSection() {
     setError('')
     setMessage('')
     try {
-      const data = await settings.updateHub({ hub_name: form.hub_name, reasons_format: form.reasons_format })
+      const data = await settings.updateHub({
+        hub_name: form.hub_name,
+        reasons_format: form.reasons_format,
+        tracking_url: form.tracking_url,
+      })
       setSaved(data)
       setForm(data)
       setMessage('Saved. New reports will use these settings.')
@@ -183,6 +189,18 @@ function HubSection() {
         </label>
       </div>
       <p className="muted small">Finalized reports keep the hub name they were finalized with.</p>
+      <label>
+        Tracking page address (for the Track buttons)
+        <input
+          value={form.tracking_url}
+          onChange={(e) => setForm({ ...form, tracking_url: e.target.value })}
+          placeholder="https://.../track?waybill={waybill}"
+        />
+      </label>
+      <p className="muted small">
+        Open one waybill's result on the company tracking page, copy the address, and replace the
+        waybill number with <code>{'{waybill}'}</code>. Leave empty to hide the Track buttons.
+      </p>
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
       <div className="actions">
