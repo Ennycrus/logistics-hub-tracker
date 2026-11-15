@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { reports } from '../api/client'
 import ConfirmDialog from '../components/ConfirmDialog'
 import CopyRow from '../components/CopyRow'
+import DailyLogCard from '../components/DailyLogCard'
 import TypeSwitch, { typeLabel, useShipmentType } from '../components/TypeSwitch'
 
 function today() {
@@ -107,6 +108,8 @@ export default function ReportPage() {
           }}
         />
       )}
+
+      {!loading && <DailyLogCard key={date} date={date} />}
     </>
   )
 }

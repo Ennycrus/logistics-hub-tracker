@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/Ennycrus/logistics-hub-tracker/actions/workflows/tests.yml)
 
-A web app for running one logistics hub's day: import gun-scanner files, track the delivery status of every shipment, and produce two accurate daily reports (**TEMU** and **Base**) in the company's 11-column format, plus a weekly delivery summary.
+A web app for running one logistics hub's day: import gun-scanner files, track the delivery status of every shipment, and produce two accurate daily reports (**TEMU** and **Base**) in the company's 11-column format, a weekly delivery summary, and the manager's Saturday hub report.
 
 Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyxl**.
 
@@ -12,11 +12,15 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Undo a wrong import** - removes the import and only the shipments it created. Refused if any of them already has a status update, is in a finalized report, or appears in a later import.
 - **Two shipment types, sorted by waybill prefix** - `3034...` = TEMU, `1...` = Base. Waybills with any other prefix make the import ask: Base, TEMU or Skip.
 - **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
+- **Who delivered it** - marking a shipment Delivered asks for Rider, Captain or 3PL. It can be filled in later for older deliveries without a note; the delivery keeps its original date.
+- **Search by the last four digits** - typing exactly 4 digits finds waybills that end with them.
+- **Track button** - opens the shipment on the courier's public tracking page (the address is set in Settings).
 - **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
 - **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
 - **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
 - **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
+- **Saturday hub report** - the manager's six items (TEMU pending, Base pending, delivered by riders/captains/3PLs, not in hub, fuel, incidents), ready to copy into WhatsApp or email and download as Excel. Fuel and incidents are entered each day on the Daily Report page. Every save is kept as a version.
 - **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
 - **Pending list, Report history, Settings** - statuses and failure reasons are editable.
@@ -52,6 +56,21 @@ The delivery week runs **Monday to Saturday**, and only **finalized** reports ar
 
 The daily Total Available figures are not added up: a shipment that waits three days appears in three of them, so the sum would count it three times. Days that are not finalized are shown as missing, and without Monday there is no weekly rate.
 
+## How the Saturday hub report is calculated
+
+One report for the whole hub (TEMU and Base together), for the Monday-Saturday week.
+
+| Item | Meaning |
+| --- | --- |
+| 1. TEMU pending in hub | TEMU shipments not delivered yet (Not Yet Checked, Pending/Unsuccessful, Returned) at the time of the report |
+| 2. Base pending in hub | The same for Base |
+| 3. Delivered | Shipments delivered Monday to Saturday (and still delivered), split into Riders, Captains and 3PLs |
+| 4. Not in hub (awaiting update) | Shipments out with riders with no result yet (Not Yet Checked). These are also inside items 1 and 2 |
+| 5. Fuel used | Litres for riders and captains, added up from the daily entries |
+| 6. Incidents | Every day's incident note, plus any extra notes added on Saturday |
+
+**Save** freezes all the figures; saving again adds a new version and keeps the earlier ones. Before sending, the page warns you if a day has no fuel entered, if delivered shipments have nobody recorded, or if item 3 does not match the Delivered total of your finalized daily reports.
+
 ## Project structure
 
 ```
@@ -60,18 +79,18 @@ hub-tracker/
     config/                settings and URLs
     core/                  hub settings, statuses, failure reasons, login and passwords
     shipments/             shipments, status history, scanner imports and undo
-    reports/               reporting days, calculations, reports, weekly summary, Excel export
+    reports/               reporting days, calculations, reports, weekly summary, Saturday report, Excel export
     .env.example           template for your private .env file
     requirements.txt
   frontend/                React app (Vite)
     src/api/client.js      the one file that talks to Django
-    src/pages/             Dashboard, Import, Shipments, Pending, Daily Report, Weekly, History, Settings
+    src/pages/             Dashboard, Import, Shipments, Pending, Daily Report, Weekly, Saturday Report, History, Settings
     src/components/        layout, status editor, dialogs, Base/TEMU switch
   docs/
     DAILY_ROUTINE.md       step-by-step daily guide
 ```
 
-The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py` and `reports/services/weekly.py`), so the API views stay thin.
+The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py`, `reports/services/weekly.py` and `reports/services/weekly_hub.py`), so the API views stay thin.
 
 ## Setup (Windows)
 
@@ -114,7 +133,7 @@ Open **http://localhost:5173** and log in.
 
 ## Daily use
 
-See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, back up, and check the weekly delivery on Saturday.
+See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, enter the day's fuel and incidents, back up, and on Saturday send the Saturday report.
 
 ## Useful commands
 
@@ -123,8 +142,8 @@ Run these in `backend` with the venv active.
 | Command | What it does |
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
-| `python manage.py reset_data` | Deletes all shipments, imports and reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (254 tests) |
+| `python manage.py reset_data` | Deletes all shipments, imports, reports, fuel logs and Saturday reports after a backup; keeps users and settings |
+| `python manage.py test` | Runs the test suite (298 tests) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -147,6 +166,10 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 | `GET /api/reports/` | Report history |
 | `GET /api/reports/weekly/?date=` | The Monday-Saturday week containing that date |
 | `GET /api/reports/weekly/download/?date=` | The week as an Excel file |
+| `GET/POST /api/reports/daily-log/?date=` | One day's fuel (litres) and incidents |
+| `GET/POST /api/reports/weekly-hub/?date=` | The Saturday report; POST saves a new version (`&version=` to open an older one) |
+| `GET /api/reports/weekly-hub/download/?date=` | The Saturday report as an Excel file |
+| `GET /api/reports/weekly-hub/history/` | Every saved Saturday report version |
 | `POST /api/auth/change-password/` | Change your password (needs the current one) |
 
 ## Security notes

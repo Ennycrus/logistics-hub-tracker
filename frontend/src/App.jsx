@@ -4,6 +4,7 @@ import { auth } from './api/client'
 import Layout from './components/Layout'
 import DashboardPage from './pages/DashboardPage'
 import HistoryPage from './pages/HistoryPage'
+import HubReportPage from './pages/HubReportPage'
 import ImportPage from './pages/ImportPage'
 import LoginPage from './pages/LoginPage'
 import PendingPage from './pages/PendingPage'
@@ -119,6 +120,7 @@ export default function App() {
           <Route path="/pending" element={<PendingPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/weekly" element={<WeeklyPage />} />
+          <Route path="/hub-report" element={<HubReportPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {/* Any other address (including the home page) goes to the Dashboard. */}

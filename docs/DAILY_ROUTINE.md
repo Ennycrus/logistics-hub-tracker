@@ -1,6 +1,6 @@
 ﻿# Daily Routine
 
-Every day ends with two finalized reports, TEMU and Base, sent to the company sheet, and a fresh backup. Plan about 15 minutes after the scans are done.
+Every day ends with two finalized reports, TEMU and Base, sent to the company sheet, the day's fuel and incidents entered, and a fresh backup. Plan about 15 minutes after the scans are done.
 
 ## 1. Start the app
 
@@ -46,6 +46,7 @@ Every shipment starts as **Not Yet Checked**; record its real result from the co
 Rules the app enforces:
 
 - **Delivery Unsuccessful** needs a failure reason; reason **Other** needs a written explanation.
+- **Delivered** needs **Delivered by**: **Rider**, **Captain** or **3PL**. With **Update selected**, tick only the shipments one group delivered (for example all the riders' ones), then choose once.
 - Changing a shipment that is already **Delivered** needs a note saying why.
 - **Date this happened** defaults to today; set it to yesterday when recording yesterday's result this morning.
 
@@ -70,7 +71,18 @@ Finalize TEMU first, then Base; each has its own figures, transport and Excel fi
 
 A manual adjustment is only for a calculated figure you know is wrong; it needs a note and shows as a warning.
 
-## 6. Back up and shut down
+## 6. Enter today's fuel and incidents
+
+One entry per day for the whole hub (TEMU and Base together). The Saturday report adds them up.
+
+1. On **Daily Report**, scroll to **Today's fuel and incidents** at the bottom.
+2. Enter the litres used by **riders** and by **captains**. Type **0** if none was used; leaving a box empty means "not entered".
+3. Write any incidents, escalations, challenges or difficulties. Leave it empty if nothing happened.
+4. Click **Save fuel and incidents**.
+
+Forgot a day? Change the date at the top of **Daily Report** to that day and fill it in.
+
+## 7. Back up and shut down
 
 A backup runs by itself every evening at 7 pm (and catches up when the laptop is next turned on). To make an extra one by hand:
 
@@ -84,7 +96,7 @@ A backup runs by itself every evening at 7 pm (and catches up when the laptop is
 3. Stop both servers with **Ctrl+C** in each terminal.
 4. Once a week, copy the `backend\backups` folder to Google Drive or a flash drive.
 
-## 7. Saturday: check the weekly delivery
+## 8. Saturday: check the weekly delivery
 
 The delivery week runs Monday to Saturday, and its figures come only from finalized reports. The **Dashboard** shows this week's rate every day; the **Weekly** page has the full detail.
 
@@ -95,11 +107,28 @@ The delivery week runs Monday to Saturday, and its figures come only from finali
 
 Available = Monday's Old Pending + every Inbound from Monday to Saturday, so each shipment is counted once however many days it waited.
 
+## 9. Saturday evening: send the Saturday report
+
+The manager's weekly report, for TEMU and Base together. Do it after step 8.
+
+1. Go to **Saturday Report**.
+2. Read the warnings and fix them first:
+    - **No fuel entered for ...**: fill in those days (step 6).
+    - **... delivered shipment(s) have no Rider, Captain or 3PL recorded**: open them on **Shipments** and choose who delivered them.
+    - **Check before sending**: the delivered number differs from your finalized daily reports. Find out why before sending.
+3. Add anything else under **Extra notes for item 6** (optional).
+4. Click **Save report**. The figures are now frozen as they are at that moment.
+5. Click **Copy report** and paste it into WhatsApp or your email, or click **Download Excel**.
+
+Item 4 (not in hub) is already included in items 1 and 2, because pending means "not delivered yet". Saving again creates a new version; earlier versions stay under **Saved Saturday reports**.
+
 ## Occasional tasks
 
 **Undo a wrong import.** In **Import history**, click **Undo** on that row and confirm. Only the shipments that import created are removed; shipments that were already in the system stay. It is refused if any of its shipments already has a status update, is in a finalized report, or appears in a later import (undo the later one first).
 
 **Correct a finalized report.** Open **Daily Report** on that date and type, write a reason under **Need to correct this report?**, click **Start correction**, fix the figures, then finalize again. The original stays in **History** as *Replaced*; send the new version (`_v2`) to the company.
+
+**Add who delivered an older shipment.** Open it on **Shipments**, click **Update**, keep **Delivered**, choose **Rider**, **Captain** or **3PL**, then save. No note is needed, and the delivery keeps its original date.
 
 **Catch up on a missed day.** Import that day's files with its own **Reporting date**, record results with **Date this happened** set to that day, and finalize that date before the next one, so Old Pending carries forward correctly.
 
@@ -123,3 +152,6 @@ Available = Monday's Old Pending + every Inbound from Monday to Saturday, so eac
 | Check line says **Difference** instead of Balanced | Look for shipments without a result on **Pending**; do not finalize until it balances or you know why. |
 | "... report is finalized" when editing | Use **Start correction** instead. |
 | Weekly page says **Incomplete week** | Finalize the missing days on **Daily Report**, then refresh. |
+| **Save** stays grey when marking Delivered | Choose **Rider**, **Captain** or **3PL** first. |
+| Saturday report says fuel "entered for 4 of 6 days" | Fill in the missing days on **Daily Report**, then **Save again** on **Saturday Report**. |
+| Saturday report: **Check before sending** | A daily report was adjusted, or a delivery was recorded after its day was finalized. Compare with **Weekly** before sending. |

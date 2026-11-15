@@ -6,8 +6,6 @@
  *
  * Errors: if Django answers with an error, these functions throw an ApiError
  * whose .message is Django's "error" text and .details its field errors.
- * If Django says you are no longer logged in, an "auth:expired" event tells
- * App to show the login page.
  */
 
 export class ApiError extends Error {
@@ -166,6 +164,17 @@ export const reports = {
   // The Monday-Saturday week containing `date`, from finalized reports.
   weekly: (date, type = 'temu') => request(`/reports/weekly/${query({ date, type })}`),
   weeklyDownloadUrl: (date, type = 'temu') => `/api/reports/weekly/download/${query({ date, type })}`,
+  // The Saturday report for the manager (both types together).
+  // Leave version out for the latest saved version.
+  weeklyHub: (date, version) => request(`/reports/weekly-hub/${query({ date, version })}`),
+  saveWeeklyHub: (date, values) =>
+    request(`/reports/weekly-hub/${query({ date })}`, { method: 'POST', body: values }),
+  weeklyHubHistory: () => request('/reports/weekly-hub/history/'),
+  weeklyHubDownloadUrl: (date, version) => `/api/reports/weekly-hub/download/${query({ date, version })}`,
+  // Fuel and incidents for one day (TEMU and Base together).
+  dailyLog: (date) => request(`/reports/daily-log/${query({ date })}`),
+  saveDailyLog: (date, values) =>
+    request(`/reports/daily-log/${query({ date })}`, { method: 'POST', body: values }),
 }
 
 // --- Settings --------------------------------------------------------------

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { shipments } from '../api/client'
 import ConfirmDialog from './ConfirmDialog'
 
+// Who delivered a shipment (for the Saturday report).
+const DELIVERED_BY = [['rider', 'Rider'], ['captain', 'Captain'], ['3pl', '3PL']]
+
 // Today's date as YYYY-MM-DD in your own time zone.
 function today() {
   return new Date().toLocaleDateString('en-CA')
@@ -14,18 +17,21 @@ function today() {
  * Shows only the fields that matter:
  *   - Reason          when the chosen status needs one (e.g. Delivery Unsuccessful)
  *   - Explanation     when the reason is "Other"
- *   - Reason for change (required) when the shipment is already Delivered (rule C)
+ *   - Delivered by    when the status is Delivered (Rider, Captain or 3PL)
+ *   - Reason for change (required) when the shipment is already Delivered (rule C),
+ *     except when you are only filling in who delivered it (nobody recorded yet)
  *
  * Django still checks every rule; any error it sends back is shown here.
  */
 export default function StatusEditor({ shipment, selected, statuses, reasons, onSaved, onClose }) {
   const bulk = Boolean(selected)
   // In bulk mode there is no single "current" status, so start with empty choices.
-  const start = bulk ? { status: '', failure_reason: null, reason_note: '' } : shipment
+  const start = bulk ? { status: '', failure_reason: null, reason_note: '', delivered_by: '' } : shipment
 
   const [statusId, setStatusId] = useState(start.status ? String(start.status) : '')
   const [reasonId, setReasonId] = useState(start.failure_reason ? String(start.failure_reason) : '')
   const [reasonNote, setReasonNote] = useState(start.reason_note || '')
+  const [deliveredBy, setDeliveredBy] = useState(start.delivered_by || '')
   const [note, setNote] = useState('')
   const [date, setDate] = useState(today())
 
@@ -39,15 +45,27 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   const reason = reasons.find((r) => String(r.id) === reasonId)
   const needsReason = Boolean(status?.requires_reason)
   const needsReasonNote = needsReason && Boolean(reason?.is_other)
+  const isDelivered = status?.category === 'delivered'
   const deliveredCount = bulk
     ? selected.filter((s) => s.status_category === 'delivered').length
     : shipment.status_category === 'delivered' ? 1 : 0
   const wasDelivered = deliveredCount > 0
 
+  // Only adding who delivered a shipment that is already delivered: no note needed.
+  const deliveredOnes = bulk
+    ? selected.filter((s) => s.status_category === 'delivered')
+    : wasDelivered ? [shipment] : []
+  const onlyAddingWho =
+    isDelivered &&
+    deliveredBy !== '' &&
+    deliveredOnes.every((s) => String(s.status) === statusId && !s.delivered_by)
+  const noteRequired = wasDelivered && !onlyAddingWho
+
   const dirty =
     statusId !== (start.status ? String(start.status) : '') ||
     reasonId !== (start.failure_reason ? String(start.failure_reason) : '') ||
     reasonNote !== (start.reason_note || '') ||
+    (isDelivered && deliveredBy !== (start.delivered_by || '')) ||
     note !== ''
 
   // Ask before throwing away changes you haven't saved.
@@ -81,6 +99,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
       status: Number(statusId),
       failure_reason: needsReason && reasonId ? Number(reasonId) : null,
       reason_note: needsReasonNote ? reasonNote : '',
+      delivered_by: isDelivered ? deliveredBy : '',
       note,
       effective_date: date,
     }
@@ -128,6 +147,26 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
             </select>
           </label>
 
+          {isDelivered && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Delivered by</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {DELIVERED_BY.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={deliveredBy === value ? '' : 'secondary'}
+                    style={{ flex: 1 }}
+                    onClick={() => setDeliveredBy(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {fieldError('delivered_by') && <span className="field-error">{fieldError('delivered_by')}</span>}
+            </div>
+          )}
+
           {needsReason && (
             <label>
               Reason
@@ -150,7 +189,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
           )}
 
           <label>
-            {!wasDelivered
+            {!noteRequired
               ? 'Note (optional)'
               : bulk
                 ? `Reason for change (required: ${deliveredCount} selected shipment(s) already delivered)`
@@ -159,7 +198,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
               rows="2"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              required={wasDelivered}
+              required={noteRequired}
             />
             {fieldError('note') && <span className="field-error">{fieldError('note')}</span>}
           </label>
@@ -167,6 +206,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
           <label>
             Date this happened
             <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} required />
+            {onlyAddingWho && <span className="muted small">Only adding who delivered it: the delivery keeps its original date.</span>}
             {fieldError('effective_date') && <span className="field-error">{fieldError('effective_date')}</span>}
           </label>
 
@@ -181,7 +221,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
 
           <div className="dialog-actions">
             <button type="button" className="secondary" onClick={close} disabled={saving}>Cancel</button>
-            <button type="submit" disabled={saving || !dirty}>{saving ? 'Saving…' : bulk ? `Update ${selected.length}` : 'Save'}</button>
+            <button type="submit" disabled={saving || !dirty || (isDelivered && !deliveredBy)}>{saving ? 'Saving…' : bulk ? `Update ${selected.length}` : 'Save'}</button>
           </div>
         </form>
       </div>
