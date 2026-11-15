@@ -80,7 +80,7 @@ One entry per day for the whole hub (TEMU and Base together). The Saturday repor
 3. Write any incidents, escalations, challenges or difficulties. Leave it empty if nothing happened.
 4. Click **Save fuel and incidents**.
 
-Forgot a day? Change the date at the top of **Daily Report** to that day and fill it in.
+Forgot a day? Change the date at the top of **Daily Report** to that day and fill it in. Changed a figure later? The earlier value is kept; click **Show changes** to see every save. Anything entered on a **Sunday** counts in the next week's Saturday report.
 
 ## 7. Back up and shut down
 
@@ -114,10 +114,11 @@ The manager's weekly report, for TEMU and Base together. Do it after step 8.
 1. Go to **Saturday Report**.
 2. Read the warnings and fix them first:
     - **No fuel entered for ...**: fill in those days (step 6).
-    - **... delivered shipment(s) have no Rider, Captain or 3PL recorded**: open them on **Shipments** and choose who delivered them.
+    - **... delivered shipment(s) have no Rider, Captain or 3PL recorded**: click **Show them**, then **Update** on each and choose who delivered it.
+    - **... shipment(s) have had no status update for 7 days or more**: click **Show them** and record what happened to each, so items 1, 2 and 4 are not too high.
     - **Check before sending**: the delivered number differs from your finalized daily reports. Find out why before sending.
 3. Add anything else under **Extra notes for item 6** (optional).
-4. Click **Save report**. The figures are now frozen as they are at that moment.
+4. Click **Save report**. If a warning is still open, the app lists it and asks **Save anyway?**. The figures are now frozen as they are at that moment.
 5. Click **Copy report** and paste it into WhatsApp or your email, or click **Download Excel**.
 
 Item 4 (not in hub) is already included in items 1 and 2, because pending means "not delivered yet". Saving again creates a new version; earlier versions stay under **Saved Saturday reports**.
@@ -128,7 +129,9 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 
 **Correct a finalized report.** Open **Daily Report** on that date and type, write a reason under **Need to correct this report?**, click **Start correction**, fix the figures, then finalize again. The original stays in **History** as *Replaced*; send the new version (`_v2`) to the company.
 
-**Add who delivered an older shipment.** Open it on **Shipments**, click **Update**, keep **Delivered**, choose **Rider**, **Captain** or **3PL**, then save. No note is needed, and the delivery keeps its original date.
+**Add who delivered an older shipment.** On **Shipments**, set the filter to **Delivered, nobody recorded**, click **Update** on the shipment, keep **Delivered**, choose **Rider**, **Captain** or **3PL**, then save. No note is needed, and the delivery keeps its original date.
+
+**Clear stuck shipments.** On **Shipments**, set the filter to **Stuck: no update for 7+ days** and record what happened to each one (delivered, returned, rerouted...).
 
 **Catch up on a missed day.** Import that day's files with its own **Reporting date**, record results with **Date this happened** set to that day, and finalize that date before the next one, so Old Pending carries forward correctly.
 
@@ -155,3 +158,4 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 | **Save** stays grey when marking Delivered | Choose **Rider**, **Captain** or **3PL** first. |
 | Saturday report says fuel "entered for 4 of 6 days" | Fill in the missing days on **Daily Report**, then **Save again** on **Saturday Report**. |
 | Saturday report: **Check before sending** | A daily report was adjusted, or a delivery was recorded after its day was finalized. Compare with **Weekly** before sending. |
+| Shipments page still shows a filter after clicking a **Show them** link | Pick **All statuses** in the filter box. |

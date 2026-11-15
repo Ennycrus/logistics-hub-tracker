@@ -14,13 +14,14 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
 - **Who delivered it** - marking a shipment Delivered asks for Rider, Captain or 3PL. It can be filled in later for older deliveries without a note; the delivery keeps its original date.
 - **Search by the last four digits** - typing exactly 4 digits finds waybills that end with them.
+- **Check filters on Shipments** - "Delivered, nobody recorded" and "Stuck: no update for 7+ days", linked from the Saturday report warnings.
 - **Track button** - opens the shipment on the courier's public tracking page (the address is set in Settings).
 - **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
 - **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
 - **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
 - **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
-- **Saturday hub report** - the manager's six items (TEMU pending, Base pending, delivered by riders/captains/3PLs, not in hub, fuel, incidents), ready to copy into WhatsApp or email and download as Excel. Fuel and incidents are entered each day on the Daily Report page. Every save is kept as a version.
+- **Saturday hub report** - the manager's six items (TEMU pending, Base pending, delivered by riders/captains/3PLs, not in hub, fuel, incidents), ready to copy into WhatsApp or email and download as Excel. Fuel and incidents are entered each day on the Daily Report page, and every change to them is kept. Every save of the report is kept as a version.
 - **Dashboard** - today's figures, this week's delivery rate and what still needs attention.
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
 - **Pending list, Report history, Settings** - statuses and failure reasons are editable.
@@ -69,11 +70,13 @@ One report for the whole hub (TEMU and Base together), for the Monday-Saturday w
 | 5. Fuel used | Litres for riders and captains, added up from the daily entries |
 | 6. Incidents | Every day's incident note, plus any extra notes added on Saturday |
 
-**Save** freezes all the figures; saving again adds a new version and keeps the earlier ones. Before sending, the page warns you if a day has no fuel entered, if delivered shipments have nobody recorded, or if item 3 does not match the Delivered total of your finalized daily reports.
+**Save** freezes all the figures; saving again adds a new version and keeps the earlier ones. Before sending, the page warns you if a day has no fuel entered, if delivered shipments have nobody recorded, if shipments have had no update for 7 days or more (they may be inflating items 1, 2 and 4), or if item 3 does not match the Delivered total of your finalized daily reports. Saving while a warning is open asks you to confirm first.
+
+**Sundays:** the report goes out on Saturday evening, so anything dated on a Sunday (deliveries, fuel, incidents) is counted in the next week's report. Nothing done on a Sunday is left out.
 
 ## Project structure
 
-```
+````
 hub-tracker/
   backend/                 Django project
     config/                settings and URLs
@@ -88,7 +91,7 @@ hub-tracker/
     src/components/        layout, status editor, dialogs, Base/TEMU switch
   docs/
     DAILY_ROUTINE.md       step-by-step daily guide
-```
+````
 
 The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py`, `reports/services/weekly.py` and `reports/services/weekly_hub.py`), so the API views stay thin.
 
@@ -98,36 +101,36 @@ You need **Python 3.12+**, **Node.js 20+** and **Git**.
 
 ### 1. Backend
 
-```powershell
+````powershell
 git clone https://github.com/Ennycrus/logistics-hub-tracker.git
 cd logistics-hub-tracker\backend
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-```
+````
 
 Make a secret key and paste it into `.env` (between the single quotes):
 
-```powershell
+````powershell
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-```
+````
 
 Then create the database and your login:
 
-```powershell
+````powershell
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
-```
+````
 
 ### 2. Frontend (in a second terminal)
 
-```powershell
+````powershell
 cd logistics-hub-tracker\frontend
 npm install
 npm run dev
-```
+````
 
 Open **http://localhost:5173** and log in.
 
@@ -143,7 +146,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
 | `python manage.py reset_data` | Deletes all shipments, imports, reports, fuel logs and Saturday reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (298 tests) |
+| `python manage.py test` | Runs the test suite (305 tests, about a minute) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -153,7 +156,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/shipments/` | List shipments (`search`, `category`, `type`, `page`) |
+| `GET /api/shipments/` | List shipments (`search`, `category`, `type`, `delivered_by`, `stale_days`, `page`) |
 | `POST /api/shipments/<id>/status/` | Change one status |
 | `POST /api/shipments/bulk-status/` | Change many, all or nothing |
 | `POST /api/imports/preview/` | Read a scanner file, save nothing |
@@ -166,7 +169,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 | `GET /api/reports/` | Report history |
 | `GET /api/reports/weekly/?date=` | The Monday-Saturday week containing that date |
 | `GET /api/reports/weekly/download/?date=` | The week as an Excel file |
-| `GET/POST /api/reports/daily-log/?date=` | One day's fuel (litres) and incidents |
+| `GET/POST /api/reports/daily-log/?date=` | One day's fuel (litres) and incidents, with every earlier save |
 | `GET/POST /api/reports/weekly-hub/?date=` | The Saturday report; POST saves a new version (`&version=` to open an older one) |
 | `GET /api/reports/weekly-hub/download/?date=` | The Saturday report as an Excel file |
 | `GET /api/reports/weekly-hub/history/` | Every saved Saturday report version |
