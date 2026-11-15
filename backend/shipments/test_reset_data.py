@@ -15,7 +15,7 @@ from django.core.management.base import CommandError
 from django.test import TransactionTestCase
 
 from core.models import FailureReason, HubConfig, StatusOption
-from reports.models import DailyHubLog, DailyReport, ReportingDay, WeeklyHubReport
+from reports.models import DailyHubLog, DailyHubLogChange, DailyReport, ReportingDay, WeeklyHubReport
 from reports.services.report_service import finalize, get_or_create_draft, save_draft, start_correction
 
 from .models import ImportBatch, Shipment, StatusHistory, TYPE_BASE
@@ -40,7 +40,8 @@ class ResetDataTests(TransactionTestCase):
                           accept_warnings=True)
         finalize(save_draft(start_correction(MON, 'fix'), vans=2), accept_warnings=True)
         self.assertEqual(report.version, 1)
-        DailyHubLog.objects.create(date=MON, fuel_riders_litres=5, incidents='Rain')
+        log = DailyHubLog.objects.create(date=MON, fuel_riders_litres=5, incidents='Rain')
+        DailyHubLogChange.objects.create(log=log, fuel_riders_litres=5, incidents='Rain')
         WeeklyHubReport.objects.create(week_start=MON, version=1)
 
     def reset(self, *args):
@@ -53,7 +54,7 @@ class ResetDataTests(TransactionTestCase):
         output = self.reset('--yes')
 
         for model in (Shipment, StatusHistory, ImportBatch, ReportingDay, DailyReport,
-                      DailyHubLog, WeeklyHubReport):
+                      DailyHubLog, DailyHubLogChange, WeeklyHubReport):
             self.assertEqual(model.objects.count(), 0, model.__name__)
         self.assertEqual(StatusOption.objects.count(), statuses)
         self.assertEqual(FailureReason.objects.count(), reasons)

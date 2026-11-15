@@ -141,6 +141,25 @@ class DailyHubLog(models.Model):
         return f'Hub log {self.date}'
 
 
+class DailyHubLogChange(models.Model):
+    """
+    Every save of a daily log, with the values saved. Rows are only added,
+    never edited, so a changed fuel figure always leaves a trace.
+    """
+
+    log = models.ForeignKey(DailyHubLog, on_delete=models.CASCADE, related_name='changes')
+    fuel_riders_litres = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    fuel_captains_litres = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    incidents = models.TextField(blank=True)
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-saved_at', '-pk']
+
+    def __str__(self):
+        return f'Hub log {self.log.date} saved {self.saved_at}'
+
+
 class WeeklyHubReport(models.Model):
     """
     The Saturday report for the manager, for one delivery week (Mon-Sat).

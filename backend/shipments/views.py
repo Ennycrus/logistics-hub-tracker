@@ -1,9 +1,15 @@
+import datetime
 from io import BytesIO
 
+from django.core.exceptions import ValidationError
+from django.db.models import Max
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from core.models import StatusOption
 
 from .models import ImportBatch, Shipment
 from .serializers import (
@@ -11,7 +17,7 @@ from .serializers import (
     ImportConfirmSerializer, ImportUploadSerializer, NotesSerializer, ShipmentDetailSerializer,
     ShipmentSerializer, StatusChangeSerializer,
 )
-from .services.excel_reader import preview_scan_file
+from .services.excel_reader import OPEN_CATEGORIES, preview_scan_file
 from .services.import_service import confirm_import, find_previous_import, undo_import
 from .services.search import waybill_search
 from .services.status_service import bulk_change_status, change_status
@@ -26,6 +32,9 @@ class ShipmentList(generics.ListAPIView):
         ?status=3           a status id
         ?category=unchecked a status category (e.g. to find what still needs checking)
         ?type=base          only Base shipments (or ?type=temu)
+        ?delivered_by=none  delivered, but nobody recorded as Rider, Captain or 3PL
+                            (or rider | captain | 3pl)
+        ?stale_days=7       not delivered yet and no status change for 7+ days
         ?page=2             next 50 rows
     """
 
@@ -44,6 +53,24 @@ class ShipmentList(generics.ListAPIView):
             queryset = queryset.filter(status__category=params['category'])
         if params.get('type'):
             queryset = queryset.filter(shipment_type=params['type'])
+
+        delivered_by = params.get('delivered_by')
+        if delivered_by:
+            queryset = queryset.filter(
+                status__category=StatusOption.CATEGORY_DELIVERED,
+                delivered_by='' if delivered_by == 'none' else delivered_by,
+            )
+
+        stale_days = params.get('stale_days')
+        if stale_days:
+            if not stale_days.isdigit():
+                raise ValidationError('stale_days must be a number of days.')
+            cutoff = timezone.localdate() - datetime.timedelta(days=int(stale_days))
+            queryset = (
+                queryset.filter(status__category__in=OPEN_CATEGORIES)
+                .annotate(last_change=Max('history__effective_date'))
+                .filter(last_change__lte=cutoff)
+            )
         return queryset
 
 

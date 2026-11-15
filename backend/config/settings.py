@@ -7,6 +7,7 @@ Copy .env.example to .env and fill it in (see README.md).
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -99,6 +100,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# Tests only: a fast password hasher. The real one is slow on purpose (to make
+# stolen passwords hard to crack), which made the test run take 15+ minutes.
+# Your real login is NOT affected: this only applies to "manage.py test".
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
 
 # Language and time: Nigeria (WAT, UTC+1).
 # This matters because reports are grouped by date.
@@ -141,7 +148,7 @@ LOGIN_LOCKOUT_MINUTES = 5
 
 # Django REST Framework
 REST_FRAMEWORK = {
-    # You must be logged in to use the API (the website's login session).
+    # You must be logged in to use the API (log in through /admin or /api-auth/login).
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
     ],

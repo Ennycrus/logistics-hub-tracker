@@ -6,10 +6,19 @@ function asInput(value) {
   return value === null || value === undefined ? '' : String(value)
 }
 
+function savedTime(value) {
+  return new Date(value).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function shown(value) {
+  return value === null || value === undefined ? '—' : `${value} L`
+}
+
 /*
  * Today's fuel and incidents, for the Saturday report.
  * One log per day for the whole hub (TEMU and Base together), so it shows
  * the same on both report types. The Saturday report adds the week up.
+ * Every save that changes something is kept, so "Show changes" lists them.
  */
 export default function DailyLogCard({ date }) {
   const [saved, setSaved] = useState(null) // what the server has
@@ -20,6 +29,7 @@ export default function DailyLogCard({ date }) {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [message, setMessage] = useState('')
+  const [showChanges, setShowChanges] = useState(false)
 
   function show(log) {
     setSaved(log)
@@ -98,6 +108,43 @@ export default function DailyLogCard({ date }) {
       </label>
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
+      {saved.changes.length > 0 && (
+        <p className="muted small">
+          Last saved {savedTime(saved.changes[0].saved_at)}
+          {saved.changes.length > 1 && (
+            <>
+              {` · changed ${saved.changes.length - 1} time(s) after the first save `}
+              <button type="button" className="link-button" onClick={() => setShowChanges(!showChanges)}>
+                {showChanges ? 'Hide changes' : 'Show changes'}
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      {showChanges && (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Saved</th>
+                <th>Riders</th>
+                <th>Captains</th>
+                <th>Incidents</th>
+              </tr>
+            </thead>
+            <tbody>
+              {saved.changes.map((c) => (
+                <tr key={c.saved_at}>
+                  <td className="small">{savedTime(c.saved_at)}</td>
+                  <td>{shown(c.fuel_riders_litres)}</td>
+                  <td>{shown(c.fuel_captains_litres)}</td>
+                  <td style={{ whiteSpace: 'pre-wrap' }}>{c.incidents || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="actions">
         <button type="submit" disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save fuel and incidents'}</button>
       </div>

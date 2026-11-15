@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { reports } from '../api/client'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 function today() {
   return new Date().toLocaleDateString('en-CA')
@@ -41,6 +43,7 @@ export default function HubReportPage() {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [message, setMessage] = useState('')
+  const [confirming, setConfirming] = useState(false) // "Save anyway?" box is open
 
   function show(result) {
     setData(result)
@@ -89,8 +92,27 @@ export default function HubReportPage() {
 
   const dirty = data !== null && extraNotes !== data.extra_notes
 
-  async function save(event) {
+  // Things to fix before sending (shown again in the "Save anyway?" box).
+  function problems() {
+    const live = data.live_figures
+    const list = []
+    if (live.fuel.missing_days.length) list.push(`No fuel entered for ${live.fuel.missing_days.map(dayName).join(', ')}`)
+    if (live.delivered.not_recorded) list.push(`${live.delivered.not_recorded} delivered shipment(s) with nobody recorded`)
+    if (!live.daily_reports.matches) list.push(`Delivered (${live.delivered.total}) differs from your daily reports (${live.daily_reports.delivered})`)
+    if (live.daily_reports.missing_reports) list.push(`${live.daily_reports.missing_reports} daily report(s) not finalized yet`)
+    if (live.stale.count) list.push(`${live.stale.count} shipment(s) stuck with no update for ${live.stale.days}+ days`)
+    return list
+  }
+
+  function askToSave(event) {
     event.preventDefault()
+    if (saving) return
+    if (problems().length) setConfirming(true)
+    else save()
+  }
+
+  async function save() {
+    setConfirming(false)
     if (saving) return
     setSaving(true)
     setError('')
@@ -127,6 +149,7 @@ export default function HubReportPage() {
     data?.saved && !viewingOld && JSON.stringify(data.figures) !== JSON.stringify(data.live_figures)
   const check = f?.daily_reports
   const missingFuel = f?.fuel.missing_days ?? []
+  const stale = f?.stale
 
   return (
     <>
@@ -187,8 +210,15 @@ export default function HubReportPage() {
             )}
             {f.delivered.not_recorded > 0 && (
               <p className="warning">
-                {f.delivered.not_recorded} delivered shipment(s) have no Rider, Captain or 3PL recorded.
-                Open them on the Shipments page and choose who delivered them.
+                {f.delivered.not_recorded} delivered shipment(s) have no Rider, Captain or 3PL recorded.{' '}
+                <Link to="/shipments?filter=delivered_none">Show them</Link>, then click Update on each and choose who delivered it.
+              </p>
+            )}
+            {stale?.count > 0 && (
+              <p className="warning">
+                {stale.count} shipment(s) have had no status update for {stale.days} days or more, so they may
+                be making items 1, 2 and 4 too high.{' '}
+                <Link to="/shipments?filter=stale">Show them</Link> and record what happened to them.
               </p>
             )}
             {changedSinceSave && (
@@ -217,7 +247,7 @@ export default function HubReportPage() {
               </p>
             )}
             <p className="muted small">
-              Typed in each day on the Daily Report page.
+              Typed in each day on the Daily Report page. Anything entered on a Sunday counts in the next week's report.
             </p>
             <div className="table-wrap">
               <table>
@@ -243,7 +273,7 @@ export default function HubReportPage() {
             </div>
           </div>
 
-          <form className="card" onSubmit={save}>
+          <form className="card" onSubmit={askToSave}>
             <h3>Anything else to add?</h3>
             <label>
               Extra notes for item 6 (optional)
@@ -271,6 +301,19 @@ export default function HubReportPage() {
             </div>
           </div>
         </>
+      )}
+
+      {confirming && (
+        <ConfirmDialog
+          title="Save with these warnings?"
+          message="These are not fixed yet. The report will be saved (and frozen) as it is."
+          items={problems().map((p, i) => ({ label: `${i + 1}`, value: p }))}
+          note="You can fix them and save again later; every version is kept."
+          confirmLabel="Save anyway"
+          busy={saving}
+          onConfirm={save}
+          onCancel={() => setConfirming(false)}
+        />
       )}
 
       <div className="card">

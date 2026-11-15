@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { options, settings, shipments } from '../api/client'
 import ShipmentDetails from '../components/ShipmentDetails'
 import StatusEditor from '../components/StatusEditor'
@@ -13,21 +14,38 @@ const CATEGORY_FILTERS = [
   { value: 'delivered', label: 'Delivered' },
   { value: 'returned', label: 'Returned to hub' },
   { value: 'left_hub', label: 'Left the hub' },
+  // Checks for the Saturday report (not status categories):
+  { value: 'delivered_none', label: 'Delivered, nobody recorded' },
+  { value: 'stale', label: 'Stuck: no update for 7+ days' },
 ]
+
+// What each filter asks Django for.
+function filterParams(filter) {
+  if (filter === 'delivered_none') return { delivered_by: 'none' }
+  if (filter === 'stale') return { stale_days: 7 }
+  return { category: filter }
+}
+
+const DELIVERED_BY_LABELS = { rider: 'Rider', captain: 'Captain', '3pl': '3PL' }
 
 const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
 
 /*
  * The shipments table: search by waybill, filter by status and type, 50 rows per page.
  * Typing exactly 4 digits finds waybills ENDING with them (the last four).
+ * The Saturday report links here with ?filter=delivered_none or ?filter=stale.
  * Click a waybill number to see its details, notes and history.
  * Click "Track" to open the company's tracking page for that waybill (set the address in Settings).
  * Click "Update" on a row to change its status, or tick several rows and
  * use "Update selected" to change them all at once.
  */
 export default function ShipmentsPage() {
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState(() => {
+    const wanted = searchParams.get('filter') || ''
+    return CATEGORY_FILTERS.some((f) => f.value === wanted) ? wanted : ''
+  })
   const [type, setType] = useState('') // '' = TEMU and Base
   const [page, setPage] = useState(1)
 
@@ -67,7 +85,7 @@ export default function ShipmentsPage() {
       setLoading(true)
       setError('')
       try {
-        const result = await shipments.list({ search: search.trim(), category, type, page })
+        const result = await shipments.list({ search: search.trim(), ...filterParams(category), type, page })
         if (!ignore) setData(result)
       } catch (err) {
         if (!ignore) setError(err.message)
@@ -209,6 +227,11 @@ export default function ShipmentsPage() {
                 <td>{typeLabel(s.shipment_type)}</td>
                 <td>
                   <span className={`badge badge-${s.status_category}`}>{s.status_name}</span>
+                  {s.status_category === 'delivered' && (
+                    <div className="muted small">
+                      {s.delivered_by ? `by ${DELIVERED_BY_LABELS[s.delivered_by]}` : 'nobody recorded'}
+                    </div>
+                  )}
                 </td>
                 <td>
                   {s.failure_reason_name || '—'}

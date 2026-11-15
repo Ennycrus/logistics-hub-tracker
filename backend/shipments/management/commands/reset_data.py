@@ -17,13 +17,14 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from reports.models import (
-    DailyHubLog, DailyReport, DailyShipmentRecord, ReportingDay, WeeklyHubReport,
+    DailyHubLog, DailyHubLogChange, DailyReport, DailyShipmentRecord, ReportingDay, WeeklyHubReport,
 )
 from shipments.models import ImportBatch, ImportRow, Shipment, StatusHistory
 
 # Deleted in this order: things that point at others go first.
 TABLES = [
     ('Saturday reports (all versions)', WeeklyHubReport),
+    ('Fuel and incident changes', DailyHubLogChange),
     ('Daily fuel and incident logs', DailyHubLog),
     ('Report shipment records', DailyShipmentRecord),
     ('Reports (all versions)', DailyReport),

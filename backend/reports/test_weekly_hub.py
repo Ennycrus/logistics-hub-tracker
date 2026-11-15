@@ -11,6 +11,7 @@ from io import BytesIO
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
@@ -26,6 +27,7 @@ TUE = datetime.date(2026, 11, 10)
 WED = datetime.date(2026, 11, 11)
 SAT = datetime.date(2026, 11, 14)
 LAST_SAT = datetime.date(2026, 11, 7)
+SUN_BEFORE = datetime.date(2026, 11, 8)   # belongs to the week of MON
 URL = '/api/reports/weekly-hub/'
 DAILY = '/api/reports/daily-log/'
 
@@ -294,6 +296,65 @@ class WeeklyHubTests(TestCase):
         self.deliver(a, 'rider')
         with self.assertRaises(ValidationError):
             change_status(a, self.delivered, delivered_by='captain')
+
+    # --- Sundays ---------------------------------------------------------------
+
+    def test_sunday_delivery_counts_in_the_next_week(self):
+        self.deliver(self.temu(1), 'rider', SUN_BEFORE)
+        self.assertEqual(weekly_hub_report(SAT)['figures']['delivered']['total'], 1)
+        self.assertEqual(weekly_hub_report(LAST_SAT)['figures']['delivered']['total'], 0)
+
+    def test_sunday_fuel_and_incidents_count_in_the_next_week(self):
+        self.log(SUN_BEFORE, riders='4', incidents='Sunday run')
+        report = weekly_hub_report(SAT)
+        self.assertEqual(report['figures']['fuel']['riders'], 4)
+        self.assertEqual(report['figures']['fuel']['days_entered'], 0)  # Mon-Sat still missing
+        self.assertEqual(report['days'][0]['weekday'], 'Sunday')
+        self.assertEqual(len(report['days']), 7)
+        self.assertIn('Sun 08 Nov: Sunday run', report['text'])
+        self.assertIsNone(weekly_hub_report(LAST_SAT)['figures']['fuel']['riders'])
+
+    def test_no_sunday_row_when_nothing_was_entered(self):
+        self.assertEqual(len(weekly_hub_report(SAT)['days']), 6)
+
+    # --- Stuck shipments ---------------------------------------------------
+
+    def test_stuck_shipments_are_counted(self):
+        today = timezone.localdate()
+        create_shipment('3034000001', first_seen_date=today)                              # fresh
+        create_shipment('3034000002', first_seen_date=today - datetime.timedelta(days=7))  # stuck
+        old = create_shipment('3034000003', first_seen_date=today - datetime.timedelta(days=10))
+        change_status(old, self.pending, effective_date=today)                            # updated today
+        done = create_shipment('3034000004', first_seen_date=today - datetime.timedelta(days=10))
+        change_status(done, self.delivered, effective_date=today - datetime.timedelta(days=9),
+                      delivered_by='rider')                                              # delivered: not stuck
+        stale = weekly_hub_report(SAT)['figures']['stale']
+        self.assertEqual(stale, {'count': 1, 'days': 7})
+
+        response = self.client.get('/api/shipments/?stale_days=7')
+        self.assertEqual([s['waybill_number'] for s in response.json()['results']], ['3034000002'])
+
+    def test_bad_stale_days_is_refused(self):
+        self.assertEqual(self.client.get('/api/shipments/?stale_days=abc').status_code, 400)
+
+    def test_filter_delivered_with_nobody_recorded(self):
+        a, b, c = self.temu(1), self.temu(2), self.temu(3)
+        self.deliver(a, '')
+        self.deliver(b, 'captain')
+        none = self.client.get('/api/shipments/?delivered_by=none').json()['results']
+        self.assertEqual([s['waybill_number'] for s in none], [a.waybill_number])
+        captain = self.client.get('/api/shipments/?delivered_by=captain').json()['results']
+        self.assertEqual([s['waybill_number'] for s in captain], [b.waybill_number])
+
+    # --- Daily log changes ---------------------------------------------------
+
+    def test_every_change_to_a_day_is_kept(self):
+        self.log(WED, riders='5')
+        self.log(WED, riders='5')                 # nothing changed: no new entry
+        self.log(WED, riders='6', incidents='Corrected')
+        changes = self.client.get(f'{DAILY}?date={WED}').json()['changes']
+        self.assertEqual([(c['fuel_riders_litres'], c['incidents']) for c in changes],
+                         [(6, 'Corrected'), (5, '')])
 
     def test_future_date_is_refused(self):
         response = self.client.get(f'{URL}?date=2999-01-01')
