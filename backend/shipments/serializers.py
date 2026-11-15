@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from core.models import FailureReason, StatusOption
 
-from .models import ImportBatch, ImportRow, Shipment, StatusHistory
+from .models import DELIVERED_BY_CHOICES, ImportBatch, ImportRow, Shipment, StatusHistory
 
 
 class StatusHistorySerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class StatusHistorySerializer(serializers.ModelSerializer):
         model = StatusHistory
         fields = [
             'id', 'old_status', 'new_status', 'failure_reason',
-            'reason_note', 'note', 'effective_date', 'changed_at',
+            'reason_note', 'delivered_by', 'note', 'effective_date', 'changed_at',
         ]
 
 
@@ -31,7 +31,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'waybill_number', 'shipment_type',
             'status', 'status_name', 'status_category',
-            'failure_reason', 'failure_reason_name', 'reason_note',
+            'failure_reason', 'failure_reason_name', 'reason_note', 'delivered_by',
             'notes', 'first_seen_date', 'updated_at',
         ]
 
@@ -57,6 +57,10 @@ class StatusChangeSerializer(serializers.Serializer):
         queryset=FailureReason.objects.filter(is_active=True), required=False, allow_null=True,
     )
     reason_note = serializers.CharField(required=False, allow_blank=True, default='')
+    # Who delivered it: rider, captain or 3pl (only used for a delivered status).
+    delivered_by = serializers.ChoiceField(
+        choices=DELIVERED_BY_CHOICES, required=False, allow_blank=True, default='',
+    )
     note = serializers.CharField(required=False, allow_blank=True, default='')
     effective_date = serializers.DateField(required=False)
 
@@ -127,8 +131,8 @@ class ImportBatchSerializer(serializers.ModelSerializer):
         model = ImportBatch
         fields = [
             'id', 'file_name', 'reporting_date', 'column_index', 'total_rows',
-            'new_count', 'base_new_count', 'temu_new_count', 'duplicate_in_file_count',
-            'existing_outstanding_count', 'existing_closed_count', 'invalid_count', 'imported_at',
+            'new_count', 'base_new_count', 'temu_new_count', 'duplicate_in_file_count', 'existing_outstanding_count',
+            'existing_closed_count', 'invalid_count', 'imported_at',
         ]
 
 

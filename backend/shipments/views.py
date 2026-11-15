@@ -65,6 +65,7 @@ class ShipmentStatusChange(APIView):
           "status": 4,
           "failure_reason": 1,          (only when the status needs one)
           "reason_note": "Gate locked", (only when the reason is "Other")
+          "delivered_by": "rider",      (for Delivered: rider, captain or 3pl)
           "note": "optional",
           "effective_date": "2026-10-29" (optional, defaults to today)
         }
@@ -86,6 +87,7 @@ class ShipmentStatusChange(APIView):
             reason_note=data['reason_note'],
             note=data['note'],
             effective_date=data.get('effective_date'),
+            delivered_by=data['delivered_by'],
         )
 
         shipment.refresh_from_db()
@@ -136,6 +138,7 @@ class ShipmentBulkStatusChange(APIView):
             reason_note=data['reason_note'],
             note=data['note'],
             effective_date=data.get('effective_date'),
+            delivered_by=data['delivered_by'],
         )
 
         if result['failures']:

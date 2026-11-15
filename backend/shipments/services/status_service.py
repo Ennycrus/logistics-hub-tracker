@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from core.models import StatusOption
 
-from ..models import SHIPMENT_TYPE_CHOICES, TYPE_TEMU, Shipment, StatusHistory
+from ..models import DELIVERED_BY_CHOICES, SHIPMENT_TYPE_CHOICES, TYPE_TEMU, Shipment, StatusHistory
 from .shipment_types import detect_type
 
 
@@ -78,6 +78,7 @@ def change_status(
     reason_note='',
     note='',
     effective_date=None,
+    delivered_by='',
 ):
     """
     Change a shipment's current status and record the change in history.
@@ -87,6 +88,11 @@ def change_status(
     - If nothing actually changed, no history row is written.
     - Changing a shipment that is already DELIVERED needs a note explaining
       why (e.g. "Marked delivered by mistake"). The note is kept in history.
+    - delivered_by ('rider', 'captain' or '3pl') records who delivered it.
+      It is kept only for a delivered status and cleared otherwise.
+    - Filling in who delivered a shipment that is already delivered (and had
+      nobody recorded) needs no note, and keeps the original delivery date,
+      so the delivery stays in the week it really happened.
     - Returns True if a change was recorded, False if nothing changed.
     """
     effective_date = effective_date or timezone.localdate()
@@ -106,17 +112,36 @@ def change_status(
         reason_note = ''
     reason_note = (reason_note or '').strip()
 
+    delivered_by = (delivered_by or '').strip()
+    if new_status.category != StatusOption.CATEGORY_DELIVERED:
+        delivered_by = ''
+    elif delivered_by and delivered_by not in dict(DELIVERED_BY_CHOICES):
+        raise ValidationError({'delivered_by': 'Choose Rider, Captain or 3PL.'})
+
     nothing_changed = (
         shipment.status_id == new_status.pk
         and shipment.failure_reason_id == (failure_reason.pk if failure_reason else None)
         and shipment.reason_note == reason_note
+        and shipment.delivered_by == delivered_by
     )
     if nothing_changed:
         return False
 
+    # Only adding who delivered it: no note needed, and the delivery keeps its date.
+    only_adding_who = bool(
+        shipment.status_id == new_status.pk
+        and new_status.category == StatusOption.CATEGORY_DELIVERED
+        and not shipment.delivered_by
+        and delivered_by
+    )
+    if only_adding_who:
+        last = shipment.history.order_by('-effective_date', '-changed_at', '-pk').first()
+        if last:
+            effective_date = last.effective_date
+
     # Delivered is normally final. Undoing it is allowed, but never silently.
     note = (note or '').strip()
-    if shipment.status.category == StatusOption.CATEGORY_DELIVERED and not note:
+    if shipment.status.category == StatusOption.CATEGORY_DELIVERED and not note and not only_adding_who:
         raise ValidationError(
             {'note': 'This shipment is already delivered. Write a note explaining the change.'}
         )
@@ -125,6 +150,7 @@ def change_status(
     shipment.status = new_status
     shipment.failure_reason = failure_reason
     shipment.reason_note = reason_note
+    shipment.delivered_by = delivered_by
     shipment.full_clean()  # raises ValidationError -> transaction rolls back
     shipment.save()
 
@@ -134,6 +160,7 @@ def change_status(
         new_status=new_status,
         failure_reason=failure_reason,
         reason_note=reason_note,
+        delivered_by=delivered_by,
         note=note,
         effective_date=effective_date,
     )
@@ -151,6 +178,7 @@ def bulk_change_status(
     reason_note='',
     note='',
     effective_date=None,
+    delivered_by='',
 ):
     """
     Give many shipments the same new status, ALL OR NOTHING.
@@ -187,7 +215,7 @@ def bulk_change_status(
                 if change_status(
                     shipment, new_status,
                     failure_reason=failure_reason, reason_note=reason_note,
-                    note=note, effective_date=effective_date,
+                    note=note, effective_date=effective_date, delivered_by=delivered_by,
                 ):
                     changed += 1
                 else:

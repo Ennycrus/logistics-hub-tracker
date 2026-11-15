@@ -11,6 +11,17 @@ SHIPMENT_TYPE_CHOICES = [
     (TYPE_TEMU, 'TEMU'),
 ]
 
+# Who delivered a shipment. Recorded when it is marked Delivered; used by the
+# Saturday report ("delivered by riders, captains and 3PLs").
+DELIVERED_BY_RIDER = 'rider'
+DELIVERED_BY_CAPTAIN = 'captain'
+DELIVERED_BY_3PL = '3pl'
+DELIVERED_BY_CHOICES = [
+    (DELIVERED_BY_RIDER, 'Rider'),
+    (DELIVERED_BY_CAPTAIN, 'Captain'),
+    (DELIVERED_BY_3PL, '3PL'),
+]
+
 
 class Shipment(models.Model):
     """
@@ -36,6 +47,8 @@ class Shipment(models.Model):
         related_name='shipments',
     )
     reason_note = models.TextField(blank=True, help_text='Required when the reason is "Other".')
+    # Rider, Captain or 3PL - only for delivered shipments; empty otherwise.
+    delivered_by = models.CharField(max_length=10, choices=DELIVERED_BY_CHOICES, blank=True)
     notes = models.TextField(blank=True)
 
     # The date this waybill first entered the system (first scan import).
@@ -100,6 +113,7 @@ class StatusHistory(models.Model):
         FailureReason, on_delete=models.PROTECT, null=True, blank=True, related_name='+'
     )
     reason_note = models.TextField(blank=True)
+    delivered_by = models.CharField(max_length=10, choices=DELIVERED_BY_CHOICES, blank=True)
     note = models.TextField(blank=True)
 
     # The reporting day this change belongs to (can differ from changed_at

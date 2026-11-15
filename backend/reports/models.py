@@ -120,3 +120,51 @@ class DailyReport(models.Model):
     def __str__(self):
         state = 'final' if self.is_finalized else 'draft'
         return f'{self.day.date} v{self.version} ({state})'
+
+
+class DailyHubLog(models.Model):
+    """
+    Fuel and incidents for one day at the hub (TEMU and Base together).
+    Typed in on the Daily Report page; the Saturday report adds them up.
+    """
+
+    date = models.DateField(unique=True)
+    fuel_riders_litres = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    fuel_captains_litres = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    incidents = models.TextField(blank=True, help_text='Incidents, escalations, challenges, difficulties.')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date']
+
+    def __str__(self):
+        return f'Hub log {self.date}'
+
+
+class WeeklyHubReport(models.Model):
+    """
+    The Saturday report for the manager, for one delivery week (Mon-Sat).
+
+    Everything is worked out by the app (fuel and incidents come from the
+    daily logs). Pressing Save freezes it all in `figures`, so the report
+    keeps showing what you sent even if something changes later.
+    Saving again never overwrites: it adds version 2, 3, ... for that week.
+    """
+
+    week_start = models.DateField(help_text='The Monday of the week.')
+    version = models.PositiveIntegerField(default=1)
+    extra_notes = models.TextField(blank=True, help_text='Anything else to add on Saturday.')
+    figures = models.JSONField(default=dict, blank=True)  # frozen when saved
+    hub_name = models.CharField(max_length=100, blank=True)
+    saved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-week_start', '-version']
+        constraints = [
+            models.UniqueConstraint(fields=['week_start', 'version'], name='one_weekly_hub_report_per_version'),
+        ]
+
+    def __str__(self):
+        return f'Weekly hub report, week of {self.week_start} v{self.version}'

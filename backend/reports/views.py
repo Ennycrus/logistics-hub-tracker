@@ -5,6 +5,8 @@ Base and TEMU are separate reports. Add ?type=base or ?type=temu to any URL
 (TEMU is used when you leave it out), e.g. /api/reports/2026-10-29/?type=base
 
 Weekly delivery (Monday-Saturday): /api/reports/weekly/?date=2026-10-29&type=base
+Saturday hub report for the manager: /api/reports/weekly-hub/?date=2026-10-29
+Daily fuel and incidents (for that report): /api/reports/daily-log/?date=2026-10-29
 
 The views stay thin: they check the input, call the report service,
 and return the result. All the rules live in services/report_service.py.
@@ -26,8 +28,8 @@ from shipments.services.search import waybill_search
 
 from .models import DailyReport, DailyShipmentRecord, ReportingDay
 from .serializers import (
-    CorrectionSerializer, DailyReportSerializer, DayShipmentSerializer, FinalizeSerializer,
-    ReportInputSerializer,
+    CorrectionSerializer, DailyHubLogSerializer, DailyReportSerializer, DayShipmentSerializer,
+    FinalizeSerializer, ReportInputSerializer, WeeklyHubInputSerializer,
 )
 from .services.day_service import open_or_refresh_day
 from .services.excel_export import export_file_name, export_report_bytes
@@ -35,6 +37,10 @@ from .services.report_service import (
     current_report, finalize, get_or_create_draft, preview, save_draft, start_correction,
 )
 from .services.weekly import weekly_file_name, weekly_summary, weekly_workbook_bytes
+from .services.weekly_hub import (
+    daily_log, save_daily_log, save_weekly_hub_report, saved_reports, weekly_hub_file_name,
+    weekly_hub_report, weekly_hub_workbook_bytes,
+)
 
 XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -263,3 +269,76 @@ class WeeklyDownload(APIView):
         response = HttpResponse(weekly_workbook_bytes(summary, hub_name), content_type=XLSX_TYPE)
         response['Content-Disposition'] = f'attachment; filename="{weekly_file_name(summary, hub_name)}"'
         return response
+
+
+def query_date(request):
+    """?date=2026-10-29 (default: today)."""
+    return parse_date(request.query_params.get('date') or str(timezone.localdate()))
+
+
+def query_version(request):
+    """?version=2 -> 2; left out -> None (the latest)."""
+    value = request.query_params.get('version')
+    if not value:
+        return None
+    if not value.isdigit():
+        raise ValidationError('version must be a number.')
+    return int(value)
+
+
+class WeeklyHub(APIView):
+    """
+    GET  /api/reports/weekly-hub/?date=2026-11-14
+         The Saturday report for the week containing that date (default: this week).
+         Add &version=1 to see an earlier saved version.
+    POST /api/reports/weekly-hub/?date=2026-11-14   {"extra_notes": "..."}
+         Freezes every figure with the extra notes. Each save is a new version;
+         earlier versions are kept.
+    """
+
+    def get(self, request):
+        return Response(weekly_hub_report(query_date(request), query_version(request)))
+
+    def post(self, request):
+        date = query_date(request)
+        serializer = WeeklyHubInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(save_weekly_hub_report(date, **serializer.validated_data))
+
+
+class WeeklyHubDownload(APIView):
+    """
+    GET /api/reports/weekly-hub/download/?date=2026-11-14            latest version
+    GET /api/reports/weekly-hub/download/?date=2026-11-14&version=1  a specific version
+    """
+
+    def get(self, request):
+        report = weekly_hub_report(query_date(request), query_version(request))
+        response = HttpResponse(weekly_hub_workbook_bytes(report), content_type=XLSX_TYPE)
+        response['Content-Disposition'] = f'attachment; filename="{weekly_hub_file_name(report)}"'
+        return response
+
+
+class WeeklyHubHistory(APIView):
+    """GET /api/reports/weekly-hub/history/ -> every saved version of every week, newest first."""
+
+    def get(self, request):
+        return Response(saved_reports())
+
+
+class DailyLog(APIView):
+    """
+    GET  /api/reports/daily-log/?date=2026-11-10 -> that day's fuel and incidents
+    POST /api/reports/daily-log/?date=2026-11-10
+         {"fuel_riders_litres": 8, "fuel_captains_litres": 4.5, "incidents": "Van broke down"}
+         One log per day (TEMU and Base together). Saving again replaces it.
+    """
+
+    def get(self, request):
+        return Response(daily_log(query_date(request)))
+
+    def post(self, request):
+        date = query_date(request)
+        serializer = DailyHubLogSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(save_daily_log(date, **serializer.validated_data))

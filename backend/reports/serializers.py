@@ -68,3 +68,21 @@ class DayShipmentSerializer(serializers.ModelSerializer):
     def get_days_at_hub(self, record):
         # 0 = first scanned on this day; 3 = first scanned three days earlier.
         return (record.day.date - record.shipment.first_seen_date).days
+
+
+class DailyHubLogSerializer(serializers.Serializer):
+    """Fuel (litres) and incidents for one day."""
+
+    fuel_riders_litres = serializers.DecimalField(
+        max_digits=8, decimal_places=2, min_value=0, required=False, allow_null=True, default=None,
+    )
+    fuel_captains_litres = serializers.DecimalField(
+        max_digits=8, decimal_places=2, min_value=0, required=False, allow_null=True, default=None,
+    )
+    incidents = serializers.CharField(required=False, allow_blank=True, default='', max_length=5000)
+
+
+class WeeklyHubInputSerializer(serializers.Serializer):
+    """What you can add on Saturday: extra notes for item 6."""
+
+    extra_notes = serializers.CharField(required=False, allow_blank=True, default='', max_length=5000)

@@ -5,7 +5,7 @@ Delete all shipment and report data, to start fresh with real data.
     python manage.py reset_data --yes    -> no question (used by the tests)
 
 DELETED:  shipments, their status history, imports, reporting days and reports
-          (Base and TEMU).
+          (Base and TEMU), daily fuel/incident logs and Saturday reports.
 KEPT:     your login, hub name, statuses and failure reasons (Settings).
 
 A backup is ALWAYS made first (see backup_db), so this can be undone by
@@ -16,11 +16,15 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from reports.models import DailyReport, DailyShipmentRecord, ReportingDay
+from reports.models import (
+    DailyHubLog, DailyReport, DailyShipmentRecord, ReportingDay, WeeklyHubReport,
+)
 from shipments.models import ImportBatch, ImportRow, Shipment, StatusHistory
 
 # Deleted in this order: things that point at others go first.
 TABLES = [
+    ('Saturday reports (all versions)', WeeklyHubReport),
+    ('Daily fuel and incident logs', DailyHubLog),
     ('Report shipment records', DailyShipmentRecord),
     ('Reports (all versions)', DailyReport),
     ('Reporting days', ReportingDay),
