@@ -64,11 +64,40 @@ class CalculationTests(TestCase):
         self.assertEqual(f['total_available'], 6)
         self.assertEqual(f['delivered'], 2)
         self.assertEqual(f['current_day'], 3)   # U1 + P1 + R1
-        self.assertEqual(f['return'], 1)        # R1, also inside Current Day
+        self.assertEqual(f['return'], 2)        # U1 + R1, also inside Current Day
         self.assertEqual(f['rerouted'], 1)
         self.assertEqual(f['unsuccessful'], 1)
         self.assertTrue(result['reconciliation']['balanced'])
         self.assertEqual(result['warnings'], [])
+
+    def test_return_counts_only_shipments_that_came_back_that_day(self):
+        old_fail = self.make('OLD', self.unsuccessful, self.unavailable, date=MON)
+        self.make('NEW', self.unsuccessful, self.unavailable, date=TUE)
+        back = self.make('BACK', self.pending, date=MON)
+        change_status(back, self.returned, effective_date=TUE)
+        f = self.summary(TUE)['figures']
+        self.assertEqual(f['return'], 2)          # NEW + BACK; OLD failed on Monday
+        self.assertEqual(f['current_day'], 3)     # all three are still at the hub
+        self.assertEqual(self.summary(MON)['figures']['return'], 1)  # OLD on its own day
+
+        change_status(old_fail, self.unsuccessful, failure_reason=self.reschedule, effective_date=TUE)
+        self.assertEqual(self.summary(TUE)['figures']['return'], 3)  # tried again and failed today
+
+    def test_pending_delivery_is_not_a_return(self):
+        self.make('P1', self.pending)
+        self.assertEqual(self.summary(MON)['figures']['return'], 0)
+
+    def test_returned_to_sender_leaves_the_hub(self):
+        rts = StatusOption.objects.create(
+            name='Returned to Sender', category=StatusOption.CATEGORY_LEFT_HUB, sort_order=7,
+        )
+        self.make('S1', rts)
+        self.make('X1', self.rerouted)
+        result = self.summary(MON)
+        f = result['figures']
+        self.assertEqual((f['rerouted'], f['current_day'], f['return']), (2, 0, 0))
+        self.assertTrue(result['reconciliation']['balanced'])
+        self.assertEqual(self.summary(TUE)['figures']['old_pending'], 0)  # not carried forward
 
     def test_current_day_is_not_just_unsuccessful(self):
         self.make('U1', self.unsuccessful, self.unavailable)

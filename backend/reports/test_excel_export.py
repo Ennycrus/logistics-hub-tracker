@@ -59,7 +59,7 @@ class ExcelExportTests(TestCase):
     def test_values_come_from_the_snapshot(self):
         sheet = self.open_sheet(self.report)
         self.assertEqual(self.row(sheet, DATA_ROW), [
-            'Example_Hub', 2, 0, 2, 1, 1, 0, 2, 6, 3, 'Customer unavailable - 1',
+            'Example_Hub', 2, 0, 2, 1, 1, 1, 2, 6, 3, 'Customer unavailable - 1',  # U1 failed today: Return 1
         ])
 
     def test_hub_and_date_are_shown(self):

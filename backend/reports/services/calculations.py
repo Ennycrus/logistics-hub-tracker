@@ -6,9 +6,14 @@ Confirmed rules:
   Delivered       = shipments whose status at the end of the day is "delivered"
   Current Day     = shipments still at the hub at the end of the day:
                     unchecked + outstanding (Pending, Unsuccessful) + returned
-  Return          = shipments returned to the hub. They are ALSO inside
-                    Current Day, because they will be attempted again (rule 4a).
-  Rerouted        = left the hub; in neither Delivered nor Current Day.
+  Return          = shipments that came back to the hub THAT DAY: marked
+                    "Delivery Unsuccessful" or "Returned to Hub" with that
+                    day's date. They are ALSO inside Current Day, because they
+                    will be attempted again (rule 4a). A shipment that failed
+                    on an earlier day and was not taken out again is not
+                    counted in Return again.
+  Rerouted        = left the hub (category "left_hub": Rerouted to Another Hub,
+                    Returned to Sender...); in neither Delivered nor Current Day.
 
 So every shipment of the day lands in exactly one of:
   Delivered | Current Day | Rerouted
@@ -78,7 +83,14 @@ def calculate_day(day):
 
     categories = Counter(row.new_status.category for row in latest.values())
     delivered = categories[C.CATEGORY_DELIVERED]
-    returned = categories[C.CATEGORY_RETURNED]
+    # Return: came back to the hub today (unsuccessful or returned, dated today).
+    returned = sum(
+        1 for row in latest.values()
+        if row.effective_date == day.date and (
+            row.new_status.category == C.CATEGORY_RETURNED
+            or (row.new_status.category == C.CATEGORY_OUTSTANDING and row.new_status.requires_reason)
+        )
+    )
     rerouted = categories[C.CATEGORY_LEFT_HUB]
     unchecked = categories[C.CATEGORY_UNCHECKED]
     current_day = sum(categories[c] for c in AT_HUB)
@@ -122,7 +134,7 @@ def calculate_day(day):
         warnings.append({
             'code': 'does_not_reconcile',
             'message': f'Delivered ({delivered}) + Current Day ({current_day}) + '
-                       f'Rerouted ({rerouted}) = {accounted}, but Total Available is '
+                       f'Left hub ({rerouted}) = {accounted}, but Total Available is '
                        f'{total_available}. Difference: {total_available - accounted}.',
         })
 
