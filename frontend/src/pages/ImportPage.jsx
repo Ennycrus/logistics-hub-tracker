@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { imports } from '../api/client'
+import { imports, options, shipments } from '../api/client'
 import ConfirmDialog from '../components/ConfirmDialog'
+import StatusEditor from '../components/StatusEditor'
 import { typeLabel } from '../components/TypeSwitch'
 
 function today() {
@@ -55,6 +56,8 @@ export default function ImportPage() {
   const [undoBusy, setUndoBusy] = useState(false)
 
   const [history, setHistory] = useState([])
+  // A shipment opened from the preview ("Update" on a Closed - review row).
+  const [editing, setEditing] = useState(null) // { shipment, statuses, reasons }
 
   function loadHistory() {
     imports.list().then((data) => setHistory(data.results)).catch(() => {})
@@ -133,6 +136,19 @@ export default function ImportPage() {
     } finally {
       setUndoBusy(false)
       setUndoing(null)
+    }
+  }
+
+  // Open a shipment from the preview, e.g. a delivered one that came back.
+  async function openShipment(id) {
+    setError('')
+    try {
+      const [shipment, statuses, reasons] = await Promise.all([
+        shipments.get(id), options.statuses(), options.reasons(),
+      ])
+      setEditing({ shipment, statuses, reasons })
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -246,6 +262,20 @@ export default function ImportPage() {
           canConfirm={canConfirm}
           onConfirm={() => setAsking(true)}
           onCancel={reset}
+          onOpenShipment={openShipment}
+        />
+      )}
+
+      {editing && (
+        <StatusEditor
+          shipment={editing.shipment}
+          statuses={editing.statuses}
+          reasons={editing.reasons}
+          onSaved={() => {
+            setEditing(null)
+            runPreview(column) // read the file again so the row shows its new result
+          }}
+          onClose={() => setEditing(null)}
         />
       )}
 
@@ -338,6 +368,7 @@ export default function ImportPage() {
 /* The preview: summary counts, column choice, and a searchable table of every row. */
 function PreviewPanel({
   preview, column, onColumnChange, unknownType, onUnknownTypeChange, busy, canConfirm, onConfirm, onCancel,
+  onOpenShipment,
 }) {
   const [search, setSearch] = useState('')
   const [resultFilter, setResultFilter] = useState('')
@@ -452,7 +483,17 @@ function PreviewPanel({
                     <td className="mono">{r.waybill || '(empty)'}</td>
                     <td>{r.shipment_type ? typeLabel(r.shipment_type) : r.result === 'new' ? <strong>?</strong> : '—'}</td>
                     <td><span className={`badge badge-${RESULTS[r.result].badge}`}>{RESULTS[r.result].label}</span></td>
-                    <td className="small">{r.message}</td>
+                    <td className="small">
+                      {r.message}
+                      {r.result === 'existing_closed' && r.shipment_id && (
+                        <>
+                          {' '}
+                          <button type="button" className="link-button" onClick={() => onOpenShipment(r.shipment_id)}>
+                            Update status
+                          </button>
+                        </>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {shown.length === 0 && <tr><td colSpan="5" className="muted">No rows match.</td></tr>}

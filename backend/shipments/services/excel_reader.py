@@ -253,7 +253,7 @@ def preview_scan_file(file, column_index=None, file_name=''):
         counts[outcome] += 1
         result['rows'].append({
             'row_number': row_number,
-            'waybill': waybill,
+            'waybill': waybill, 'shipment_id': existing[waybill].pk if outcome in ('existing_outstanding', 'existing_closed') else None,
             'result': outcome,
             'message': message,
             'shipment_type': shipment_type,

@@ -20,7 +20,46 @@ from .serializers import (
 from .services.excel_reader import OPEN_CATEGORIES, preview_scan_file
 from .services.import_service import confirm_import, find_previous_import, undo_import
 from .services.search import waybill_search
-from .services.status_service import bulk_change_status, change_status
+from .services.status_service import bulk_change_status, change_status, is_only_adding_who
+
+
+def finalized_day_warning(shipments, effective_date, new_status, delivered_by=''):
+    """
+    A 400 response when the date belongs to a daily report that is already
+    finalized (for the type of any of these shipments), or None.
+
+    The change would not appear in that frozen report, but the NEXT day's
+    Old Pending would change, so the two would disagree. The website asks
+    first and sends allow_finalized_day=true to go ahead.
+    """
+    from reports.models import ReportingDay  # here, to keep the apps loosely linked
+
+    # Only filling in who delivered: the delivery keeps its own date and no
+    # report figure changes, so there is nothing to warn about.
+    shipments = [s for s in shipments if not is_only_adding_who(s, new_status, delivered_by)]
+    date = effective_date or timezone.localdate()
+    types = sorted({s.shipment_type for s in shipments})
+    frozen = [
+        day.get_shipment_type_display()
+        for day in ReportingDay.objects.filter(
+            date=date, shipment_type__in=types, state=ReportingDay.STATE_FINALIZED,
+        )
+        if not day.reports.filter(is_finalized=False).exists()  # no correction in progress
+    ]
+    if not frozen:
+        return None
+    names = ' and '.join(frozen)
+    return Response(
+        {
+            'error': (
+                f'The {names} report for {date:%a %d %b} is already finalized, so this change will '
+                'not appear in it, and the next day\'s Old Pending will no longer match it. '
+                'If that report needs fixing, start a correction on the Daily Report page.'
+            ),
+            'details': {'code': 'finalized_day', 'date': date.isoformat(), 'types': frozen},
+        },
+        status=status.HTTP_400_BAD_REQUEST,
+    )
 
 
 class ShipmentList(generics.ListAPIView):
@@ -98,6 +137,8 @@ class ShipmentStatusChange(APIView):
           "delivered_by": "rider",      (for Delivered: rider, captain or 3pl)
           "note": "optional",
           "effective_date": "2026-10-29" (optional, defaults to today)
+          "allow_finalized_day": true   (only after the website warned that
+                                         that day's report is already finalized)
         }
 
     The view stays thin: check the input, call the service, return the result.
@@ -109,6 +150,13 @@ class ShipmentStatusChange(APIView):
         serializer = StatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        if not data['allow_finalized_day']:
+            warning = finalized_day_warning(
+                [shipment], data.get('effective_date'), data['status'], data['delivered_by'],
+            )
+            if warning:
+                return warning
 
         changed = change_status(
             shipment,
@@ -160,6 +208,14 @@ class ShipmentBulkStatusChange(APIView):
         serializer = BulkStatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        if not data['allow_finalized_day']:
+            chosen = Shipment.objects.filter(pk__in=data['shipment_ids'])
+            warning = finalized_day_warning(
+                chosen, data.get('effective_date'), data['status'], data['delivered_by'],
+            )
+            if warning:
+                return warning
 
         result = bulk_change_status(
             data['shipment_ids'],

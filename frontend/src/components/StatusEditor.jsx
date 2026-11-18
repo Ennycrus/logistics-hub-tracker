@@ -10,6 +10,31 @@ function today() {
   return new Date().toLocaleDateString('en-CA')
 }
 
+// The last "Date this happened" you picked is remembered until you close the
+// tab, so recording yesterday's results this morning needs one change, not one per shipment.
+const DATE_KEY = 'hub:status-date'
+
+function rememberedDate() {
+  try {
+    const saved = sessionStorage.getItem(DATE_KEY)
+    return saved && saved <= today() ? saved : today()
+  } catch {
+    return today()
+  }
+}
+
+function rememberDate(value) {
+  try {
+    sessionStorage.setItem(DATE_KEY, value)
+  } catch {
+    // storage blocked: the date simply isn't remembered
+  }
+}
+
+function dayLabel(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
 /*
  * A pop-up panel for changing the status of ONE shipment, or of SEVERAL
  * selected shipments at once (pass `selected`, a list of shipments).
@@ -22,6 +47,8 @@ function today() {
  *     except when you are only filling in who delivered it (nobody recorded yet)
  *
  * Django still checks every rule; any error it sends back is shown here.
+ * If that day's report is already finalized, Django says so first and you
+ * choose whether to save anyway.
  */
 export default function StatusEditor({ shipment, selected, statuses, reasons, onSaved, onClose }) {
   const bulk = Boolean(selected)
@@ -33,13 +60,18 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   const [reasonNote, setReasonNote] = useState(start.reason_note || '')
   const [deliveredBy, setDeliveredBy] = useState(start.delivered_by || '')
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(today())
+  const [date, setDateState] = useState(rememberedDate)
+  function setDate(value) {
+    setDateState(value)
+    rememberDate(value)
+  }
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [failures, setFailures] = useState([]) // bulk: which shipments broke a rule
   const [confirmingClose, setConfirmingClose] = useState(false) // "Discard changes?" box is open
+  const [finalizedWarning, setFinalizedWarning] = useState('') // "that day is finalized" message
 
   const status = statuses.find((s) => String(s.id) === statusId)
   const reason = reasons.find((r) => String(r.id) === reasonId)
@@ -81,15 +113,20 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
   // Close with the Escape key (unless the "Discard changes?" box is open: Esc closes that box).
   useEffect(() => {
     function onKey(e) {
-      if (e.key === 'Escape' && !confirmingClose) close()
+      if (e.key === 'Escape' && !confirmingClose && !finalizedWarning) close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault()
+    submit(false)
+  }
+
+  async function submit(allowFinalizedDay) {
     if (saving) return
+    setFinalizedWarning('')
 
     setSaving(true)
     setError('')
@@ -102,6 +139,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
       delivered_by: isDelivered ? deliveredBy : '',
       note,
       effective_date: date,
+      allow_finalized_day: allowFinalizedDay,
     }
     try {
       const result = bulk
@@ -109,9 +147,13 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
         : await shipments.changeStatus(shipment.id, change)
       onSaved(result)
     } catch (err) {
-      setError(err.message)
-      setFieldErrors(err.details || {})
-      setFailures(err.details?.failures || [])
+      if (err.details?.code === 'finalized_day') {
+        setFinalizedWarning(err.message) // ask first, then save with allow_finalized_day
+      } else {
+        setError(err.message)
+        setFieldErrors(err.details || {})
+        setFailures(err.details?.failures || [])
+      }
     } finally {
       setSaving(false)
     }
@@ -207,6 +249,12 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
             Date this happened
             <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} required />
             {onlyAddingWho && <span className="muted small">Only adding who delivered it: the delivery keeps its original date.</span>}
+            {date !== today() && !onlyAddingWho && (
+              <span className="notice" style={{ display: 'block', marginTop: 8, fontWeight: 400 }}>
+                Recording for <strong>{dayLabel(date)}</strong>, not today.{' '}
+                <button type="button" className="link-button" onClick={() => setDate(today())}>Use today</button>
+              </span>
+            )}
             {fieldError('effective_date') && <span className="field-error">{fieldError('effective_date')}</span>}
           </label>
 
@@ -225,6 +273,17 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
           </div>
         </form>
       </div>
+
+      {finalizedWarning && (
+        <ConfirmDialog
+          title="That day's report is already finalized"
+          message={finalizedWarning}
+          confirmLabel="Save anyway"
+          busy={saving}
+          onConfirm={() => submit(true)}
+          onCancel={() => setFinalizedWarning('')}
+        />
+      )}
 
       {confirmingClose && (
         <ConfirmDialog

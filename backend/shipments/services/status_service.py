@@ -70,6 +70,20 @@ def create_shipment(waybill_number, first_seen_date=None, shipment_type=TYPE_TEM
     return shipment
 
 
+def is_only_adding_who(shipment, new_status, delivered_by):
+    """
+    True when the change only fills in who delivered an already-delivered
+    shipment that had nobody recorded. That needs no note and keeps the
+    delivery's own date, so it never moves a delivery to another day.
+    """
+    return bool(
+        shipment.status_id == new_status.pk
+        and new_status.category == StatusOption.CATEGORY_DELIVERED
+        and not shipment.delivered_by
+        and (delivered_by or '').strip()
+    )
+
+
 @transaction.atomic
 def change_status(
     shipment,
@@ -93,6 +107,7 @@ def change_status(
     - Filling in who delivered a shipment that is already delivered (and had
       nobody recorded) needs no note, and keeps the original delivery date,
       so the delivery stays in the week it really happened.
+    - The date cannot be before the shipment arrived (its first scan).
     - Returns True if a change was recorded, False if nothing changed.
     """
     effective_date = effective_date or timezone.localdate()
@@ -128,16 +143,17 @@ def change_status(
         return False
 
     # Only adding who delivered it: no note needed, and the delivery keeps its date.
-    only_adding_who = bool(
-        shipment.status_id == new_status.pk
-        and new_status.category == StatusOption.CATEGORY_DELIVERED
-        and not shipment.delivered_by
-        and delivered_by
-    )
+    only_adding_who = is_only_adding_who(shipment, new_status, delivered_by)
     if only_adding_who:
         last = shipment.history.order_by('-effective_date', '-changed_at', '-pk').first()
         if last:
             effective_date = last.effective_date
+
+    if effective_date < shipment.first_seen_date:
+        raise ValidationError({'effective_date': (
+            f'This shipment only arrived on {shipment.first_seen_date:%d %b %Y}, '
+            'so the date cannot be earlier than that.'
+        )})
 
     # Delivered is normally final. Undoing it is allowed, but never silently.
     note = (note or '').strip()

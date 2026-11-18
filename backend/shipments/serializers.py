@@ -63,6 +63,8 @@ class StatusChangeSerializer(serializers.Serializer):
     )
     note = serializers.CharField(required=False, allow_blank=True, default='')
     effective_date = serializers.DateField(required=False)
+    # True = "I know that day's report is already finalized, save anyway".
+    allow_finalized_day = serializers.BooleanField(required=False, default=False)
 
     def validate_effective_date(self, value):
         if value > timezone.localdate():
@@ -99,7 +101,7 @@ class ImportUploadSerializer(serializers.Serializer):
 
     def validate_file(self, file):
         if not file.name.lower().endswith(('.xlsx', '.csv', '.txt')):
-            raise serializers.ValidationError('Please upload an Excel .xlsx file.')
+            raise serializers.ValidationError('Please upload an Excel .xlsx file (or paste the list).')
         if file.size > MAX_UPLOAD_BYTES:
             raise serializers.ValidationError('The file is too large (max 5 MB).')
         return file
