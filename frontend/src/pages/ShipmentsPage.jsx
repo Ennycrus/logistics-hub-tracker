@@ -36,6 +36,8 @@ const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
  * The status filter lives in the address (?filter=stale, ?filter=delivered_none...),
  * so the Saturday report can link to a list, and clicking Shipments in the menu
  * always starts again with All statuses.
+ * Delivered shipments are hidden until you tick "Show delivered", pick the
+ * Delivered filter, or search for a waybill (a search always finds it).
  * Click a waybill number to see its details, notes and history.
  * Click "Track" to open the company's tracking page for that waybill (set the address in Settings).
  * Click "Update" on a row to change its status, or tick several rows and
@@ -50,6 +52,10 @@ export default function ShipmentsPage() {
   }
   const [search, setSearch] = useState('')
   const [type, setType] = useState('') // '' = TEMU and Base
+  const [showDelivered, setShowDelivered] = useState(false)
+  // Hide delivered unless you asked for them: the box, a delivered filter, or a search.
+  const hideDelivered =
+    !showDelivered && search.trim() === '' && !['delivered', 'delivered_none'].includes(category)
   const [page, setPage] = useState(1)
 
   const [data, setData] = useState({ count: 0, results: [] })
@@ -91,7 +97,10 @@ export default function ShipmentsPage() {
       setLoading(true)
       setError('')
       try {
-        const result = await shipments.list({ search: search.trim(), ...filterParams(category), type, page })
+        const result = await shipments.list({
+          search: search.trim(), ...filterParams(category), type, page,
+          hide_delivered: hideDelivered ? 1 : undefined,
+        })
         if (!ignore) setData(result)
       } catch (err) {
         if (!ignore) setError(err.message)
@@ -104,7 +113,7 @@ export default function ShipmentsPage() {
       ignore = true
       clearTimeout(timer)
     }
-  }, [search, category, type, page, reloadKey])
+  }, [search, category, type, page, reloadKey, hideDelivered])
 
   function handleBulkSaved(result) {
     setBulkOpen(false)
@@ -173,6 +182,17 @@ export default function ShipmentsPage() {
             <option key={t.value} value={t.value}>{t.label} only</option>
           ))}
         </select>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={showDelivered}
+            onChange={(e) => {
+              setShowDelivered(e.target.checked)
+              setPage(1)
+            }}
+          />
+          Show delivered
+        </label>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -180,6 +200,7 @@ export default function ShipmentsPage() {
 
       <p className="muted">
         {loading ? 'Loading…' : `${data.count} shipment${data.count === 1 ? '' : 's'}`}
+        {!loading && hideDelivered && ' (delivered hidden)'}
       </p>
 
       {selectedIds.length > 0 && (

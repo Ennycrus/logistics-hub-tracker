@@ -35,6 +35,7 @@ class ShipmentList(generics.ListAPIView):
         ?delivered_by=none  delivered, but nobody recorded as Rider, Captain or 3PL
                             (or rider | captain | 3pl)
         ?stale_days=7       not delivered yet and no status change for 7+ days
+        ?hide_delivered=1   leave out delivered shipments
         ?page=2             next 50 rows
     """
 
@@ -53,6 +54,8 @@ class ShipmentList(generics.ListAPIView):
             queryset = queryset.filter(status__category=params['category'])
         if params.get('type'):
             queryset = queryset.filter(shipment_type=params['type'])
+        if params.get('hide_delivered') == '1':
+            queryset = queryset.exclude(status__category=StatusOption.CATEGORY_DELIVERED)
 
         delivered_by = params.get('delivered_by')
         if delivered_by:
@@ -185,7 +188,7 @@ class ShipmentBulkStatusChange(APIView):
 class ImportPreview(generics.GenericAPIView):
     """
     POST /api/imports/preview/   (form-data)
-        file    the scanner .xlsx
+        file    the scanner .xlsx, or a .txt/.csv (a list pasted from Google Sheets)
         column  optional, 0-based column number
 
     Reads the file and classifies every row. Saves NOTHING.
