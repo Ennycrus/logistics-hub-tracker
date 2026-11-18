@@ -109,7 +109,7 @@ def export_report_bytes(report):
 
 
 def export_file_name(report):
-    """e.g. Example_Hub_TEMU_2026-10-28.xlsx, or ..._v2.xlsx for a correction."""
+    """e.g. EXAMPLE_HUB_TEMU_2026-10-28.xlsx, or ..._v2.xlsx for a correction."""
     hub = ''.join(ch if ch.isalnum() or ch in '-_' else '_' for ch in report.hub_name) or 'hub'
     kind = report.day.get_shipment_type_display()
     suffix = f'_v{report.version}' if report.version > 1 else ''

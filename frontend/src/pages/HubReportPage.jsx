@@ -278,7 +278,7 @@ export default function HubReportPage() {
             <label>
               Extra notes for item 6 (optional)
               <textarea rows="3" value={extraNotes} onChange={(e) => setExtraNotes(e.target.value)}
-                placeholder="e.g. We need one more rider for the Example route" />
+                placeholder="e.g. We need one more rider for the Monday route" />
               {fieldError('extra_notes') && <span className="field-error">{fieldError('extra_notes')}</span>}
             </label>
             <div className="actions">
