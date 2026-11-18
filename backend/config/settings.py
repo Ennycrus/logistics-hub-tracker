@@ -100,11 +100,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# A second folder for backups, OFF this laptop's own disk: for example your
+# Google Drive folder, so every backup is also uploaded automatically.
+# Set it in .env:  BACKUP_COPY_DIR=G:\My Drive\Hub Tracker backups
+# Leave it out to keep backups only in backend/backups.
+BACKUP_COPY_DIR = os.environ.get('BACKUP_COPY_DIR', '').strip()
+
 # Tests only: a fast password hasher. The real one is slow on purpose (to make
 # stolen passwords hard to crack), which made the test run take 15+ minutes.
 # Your real login is NOT affected: this only applies to "manage.py test".
+# Tests also never copy backups into your real second folder.
 if len(sys.argv) > 1 and sys.argv[1] == 'test':
     PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+    BACKUP_COPY_DIR = ''
 
 
 # Language and time: Nigeria (WAT, UTC+1).

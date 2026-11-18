@@ -33,19 +33,22 @@ const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
 /*
  * The shipments table: search by waybill, filter by status and type, 50 rows per page.
  * Typing exactly 4 digits finds waybills ENDING with them (the last four).
- * The Saturday report links here with ?filter=delivered_none or ?filter=stale.
+ * The status filter lives in the address (?filter=stale, ?filter=delivered_none...),
+ * so the Saturday report can link to a list, and clicking Shipments in the menu
+ * always starts again with All statuses.
  * Click a waybill number to see its details, notes and history.
  * Click "Track" to open the company's tracking page for that waybill (set the address in Settings).
  * Click "Update" on a row to change its status, or tick several rows and
  * use "Update selected" to change them all at once.
  */
 export default function ShipmentsPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const wanted = searchParams.get('filter') || ''
+  const category = CATEGORY_FILTERS.some((f) => f.value === wanted) ? wanted : ''
+  function setCategory(value) {
+    setSearchParams(value ? { filter: value } : {})
+  }
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState(() => {
-    const wanted = searchParams.get('filter') || ''
-    return CATEGORY_FILTERS.some((f) => f.value === wanted) ? wanted : ''
-  })
   const [type, setType] = useState('') // '' = TEMU and Base
   const [page, setPage] = useState(1)
 
@@ -74,6 +77,9 @@ export default function ShipmentsPage() {
       })
       .catch((err) => setError(err.message))
   }, [])
+
+  // A different filter (also from a link or the menu) starts on page 1.
+  useEffect(() => setPage(1), [category])
 
   // Reload the table whenever the search, filter or page changes.
   useEffect(() => {

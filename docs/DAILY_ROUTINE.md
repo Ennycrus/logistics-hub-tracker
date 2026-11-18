@@ -158,4 +158,3 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 | **Save** stays grey when marking Delivered | Choose **Rider**, **Captain** or **3PL** first. |
 | Saturday report says fuel "entered for 4 of 6 days" | Fill in the missing days on **Daily Report**, then **Save again** on **Saturday Report**. |
 | Saturday report: **Check before sending** | A daily report was adjusted, or a delivery was recorded after its day was finalized. Compare with **Weekly** before sending. |
-| Shipments page still shows a filter after clicking a **Show them** link | Pick **All statuses** in the filter box. |

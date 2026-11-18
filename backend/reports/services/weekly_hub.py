@@ -113,8 +113,16 @@ def delivered_counts(monday):
     """
     first = sunday_before(monday)
     saturday = week_end(monday)
+    # Only shipments marked Delivered during the week can count, so look at
+    # those alone (not the whole history), which keeps this fast for years.
+    delivered_this_week = (
+        StatusHistory.objects.filter(
+            new_status__category=StatusOption.CATEGORY_DELIVERED,
+            effective_date__range=(first, saturday),
+        ).values('shipment_id')
+    )
     rows = (
-        StatusHistory.objects.filter(effective_date__lte=saturday)
+        StatusHistory.objects.filter(shipment_id__in=delivered_this_week, effective_date__lte=saturday)
         .select_related('new_status')
         .order_by('effective_date', 'changed_at', 'pk')
     )

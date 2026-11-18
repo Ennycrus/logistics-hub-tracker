@@ -53,3 +53,30 @@ class BackupCommandTests(TransactionTestCase):
 
         names = sorted(f.name for f in self.folder.glob('hub_*.sqlite3'))
         self.assertEqual(names, ['hub_2026-10-30_100000.sqlite3', 'hub_2026-10-30_110000.sqlite3'])
+
+    def test_second_copy_goes_to_the_copy_folder(self):
+        second = Path(tempfile.mkdtemp()) / 'Drive' / 'Hub backups'  # created if missing
+        output = self.backup('--copy-dir', str(second))
+        main = [f.name for f in self.folder.glob('hub_*.sqlite3')]
+        copies = [f.name for f in second.glob('hub_*.sqlite3')]
+        self.assertEqual(copies, main)
+        self.assertIn('Copy saved', output)
+
+    def test_copy_folder_keeps_only_the_newest(self):
+        second = Path(tempfile.mkdtemp())
+        for stamp in ['2026-10-30_090000', '2026-10-30_100000', '2026-10-30_110000']:
+            with mock.patch('django.utils.timezone.localtime') as fake:
+                fake.return_value.strftime.return_value = stamp
+                self.backup('--keep', '2', '--copy-dir', str(second))
+        self.assertEqual(len(list(second.glob('hub_*.sqlite3'))), 2)
+
+    def test_unreachable_copy_folder_still_keeps_the_main_backup(self):
+        blocker = Path(tempfile.mkdtemp()) / 'not-a-folder'
+        blocker.write_text('a file, so a folder cannot be made here')
+        output = self.backup('--copy-dir', str(blocker / 'backups'))
+        self.assertEqual(len(list(self.folder.glob('hub_*.sqlite3'))), 1)
+        self.assertIn('Could not copy the backup', output)
+
+    def test_no_copy_folder_set_makes_no_copy(self):
+        output = self.backup()
+        self.assertNotIn('Copy saved', output)
