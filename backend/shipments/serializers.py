@@ -98,7 +98,7 @@ class ImportUploadSerializer(serializers.Serializer):
     column = serializers.IntegerField(required=False, min_value=0)
 
     def validate_file(self, file):
-        if not file.name.lower().endswith('.xlsx'):
+        if not file.name.lower().endswith(('.xlsx', '.csv', '.txt')):
             raise serializers.ValidationError('Please upload an Excel .xlsx file.')
         if file.size > MAX_UPLOAD_BYTES:
             raise serializers.ValidationError('The file is too large (max 5 MB).')

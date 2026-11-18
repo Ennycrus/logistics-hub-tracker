@@ -100,7 +100,7 @@ class ImportApiTests(TestCase):
 
     def test_wrong_file_type_is_refused(self):
         response = self.client.post(
-            '/api/imports/preview/', {'file': SimpleUploadedFile('scan.csv', b'A1\nA2')},
+            '/api/imports/preview/', {'file': SimpleUploadedFile('scan.pdf', b'A1\nA2')},
             format='multipart',
         )
         self.assertEqual(response.status_code, 400)

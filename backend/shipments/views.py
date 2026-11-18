@@ -201,7 +201,7 @@ class ImportPreview(generics.GenericAPIView):
         upload = serializer.validated_data['file']
 
         data = upload.read()
-        result = preview_scan_file(BytesIO(data), column_index=serializer.validated_data.get('column'))
+        result = preview_scan_file(BytesIO(data), column_index=serializer.validated_data.get('column'), file_name=upload.name)
 
         previous = find_previous_import(data)
         result['file_name'] = upload.name

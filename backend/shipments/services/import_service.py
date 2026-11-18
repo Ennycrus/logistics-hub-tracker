@@ -66,7 +66,7 @@ def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx
 
     # Classify again here, inside the transaction, so the result is current
     # even if something changed since you looked at the preview.
-    preview = preview_scan_file(BytesIO(data), column_index=column_index)
+    preview = preview_scan_file(BytesIO(data), column_index=column_index, file_name=file_name)
     if preview['selected_column'] is None:
         raise ValidationError('Choose the waybill column before importing.')
 

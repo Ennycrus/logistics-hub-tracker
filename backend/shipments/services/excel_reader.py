@@ -1,5 +1,14 @@
 """
-Excel reader: reads a gun-scanner spreadsheet and PREVIEWS it.
+Excel reader: reads a gun-scanner spreadsheet (or a pasted list) and PREVIEWS it.
+
+Accepted:
+  .xlsx       the scanner's Excel file (or a Google Sheet downloaded as .xlsx)
+  .txt/.csv   plain text, one row per line - this is what a list PASTED from
+              Google Sheets becomes. Cells on a line are split by tabs (.txt)
+              or commas (.csv).
+
+Every row of the sheet is read, even when the file says it is smaller than it
+is (some apps save a wrong size, which used to make rows go missing).
 
 Nothing is saved to the database here. This file only answers:
   - Which column holds the waybill numbers?
@@ -19,6 +28,8 @@ Every row also gets a shipment type: 'base' or 'temu' from the waybill prefix
 waybill matches neither prefix, so you can choose for it when importing.
 """
 
+import csv
+import io
 import re
 import zipfile
 
@@ -66,27 +77,73 @@ def looks_like_header(text):
     return any(word in lowered for word in HEADER_KEYWORDS)
 
 
-def read_rows(file):
-    """Open the workbook and return its non-blank rows as lists of values."""
-    try:
-        workbook = load_workbook(file, read_only=True, data_only=True)
-    except (InvalidFileException, zipfile.BadZipFile, KeyError, OSError):
-        raise ValidationError('This is not a valid Excel (.xlsx) file.')
+TEXT_EXTENSIONS = ('.txt', '.csv')
 
-    sheet = workbook.active
+
+def is_text_file(file_name):
+    return (file_name or '').lower().endswith(TEXT_EXTENSIONS)
+
+
+def keep_row(rows, row_number, values):
+    """Add a non-blank row; refuse files that are too big."""
+    if all(v is None or str(v).strip() == '' for v in values):
+        return  # skip completely blank rows
+    rows.append((row_number, list(values)))
+    if len(rows) > MAX_ROWS:
+        raise ValidationError(f'The file has more than {MAX_ROWS} rows.')
+
+
+def read_text_rows(file, file_name):
+    """A pasted list or a .csv/.txt file: one row per line."""
+    data = file.read()
+    try:
+        text = data.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = data.decode('latin-1')
     rows = []
-    for row_number, values in enumerate(sheet.iter_rows(values_only=True), start=1):
-        if all(v is None or str(v).strip() == '' for v in values):
-            continue  # skip completely blank rows
-        rows.append((row_number, list(values)))
-        if len(rows) > MAX_ROWS:
+    if file_name.lower().endswith('.csv'):
+        lines = csv.reader(io.StringIO(text))
+    else:
+        lines = (line.split('\t') for line in text.splitlines())
+    for row_number, values in enumerate(lines, start=1):
+        keep_row(rows, row_number, [v.strip() for v in values])
+    return rows, []
+
+
+def read_rows(file, file_name=''):
+    """
+    Return (rows, other_sheets): the non-blank rows of the file as
+    (row_number, values), and the names of any OTHER sheets in the workbook
+    that also have data (only the first, active sheet is read).
+    """
+    if is_text_file(file_name):
+        rows, other_sheets = read_text_rows(file, file_name)
+    else:
+        try:
+            workbook = load_workbook(file, read_only=True, data_only=True)
+        except (InvalidFileException, zipfile.BadZipFile, KeyError, OSError):
+            raise ValidationError('This is not a valid Excel (.xlsx) file.')
+        try:
+            sheet = workbook.active
+            # Ignore the size the file claims to be: some apps save it wrong,
+            # and then the last rows would silently be skipped.
+            sheet.reset_dimensions()
+            rows = []
+            for row_number, values in enumerate(sheet.iter_rows(values_only=True), start=1):
+                keep_row(rows, row_number, values)
+            other_sheets = [
+                ws.title for ws in workbook.worksheets
+                if ws.title != sheet.title and any(
+                    any(v not in (None, '') for v in values)
+                    for values in ws.iter_rows(values_only=True)
+                )
+            ]
+        finally:
             workbook.close()
-            raise ValidationError(f'The file has more than {MAX_ROWS} rows.')
-    workbook.close()
 
     if not rows:
         raise ValidationError('The spreadsheet is empty.')
-    return rows
+    return rows, other_sheets
 
 
 def find_header(rows):
@@ -101,13 +158,14 @@ def find_header(rows):
     return None, None
 
 
-def preview_scan_file(file, column_index=None):
+def preview_scan_file(file, column_index=None, file_name=''):
     """
     Read the file and classify every row. Saves nothing.
 
     column_index: 0-based column to use. Leave as None for automatic detection.
+    file_name:    used to tell a .txt/.csv (pasted list) from an .xlsx file.
     """
-    rows = read_rows(file)
+    rows, other_sheets = read_rows(file, file_name)
     width = max(len(values) for _, values in rows)
 
     header, detected_index = find_header(rows)
@@ -138,6 +196,7 @@ def preview_scan_file(file, column_index=None):
         'selected_column': selected,
         'has_header': header is not None,
         'total_rows': len(data_rows),
+        'other_sheets': other_sheets,  # sheets with data that were NOT read
         'counts': {},
         'rows': [],
     }

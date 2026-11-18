@@ -26,15 +26,20 @@ function matchesWaybill(waybill, term) {
 }
 
 /*
- * Import a gun-scanner file in two steps:
+ * Import a gun-scanner file (or a list pasted from Google Sheets) in two steps:
  *   1. Preview  – Django reads the file and classifies every row. Nothing is saved.
  *   2. Confirm  – Django saves the batch and creates the new shipments.
  * Each new waybill becomes TEMU (starts with 3034) or Base (starts with 1).
  * If some start with neither, you choose Base, TEMU or Skip before confirming.
  * Below that: the history of past imports, each with an Undo button for a wrong import.
+ *
+ * Pasting: copy the waybill column in Google Sheets (Ctrl+C) and paste it in the
+ * box. It is sent as a small text file, so it goes through exactly the same
+ * preview, checks and import as an Excel file.
  */
 export default function ImportPage() {
   const [file, setFile] = useState(null)
+  const [pasted, setPasted] = useState('')   // waybills pasted from Google Sheets
   const [date, setDate] = useState(today())
   const [column, setColumn] = useState('')   // '' = let Django detect it
   const [inputKey, setInputKey] = useState(0) // change it to clear the file box
@@ -56,15 +61,15 @@ export default function ImportPage() {
   }
   useEffect(loadHistory, [])
 
-  async function runPreview(chosenColumn = column) {
-    if (!file || busy) return
+  async function runPreview(chosenColumn = column, theFile = file) {
+    if (!theFile || busy) return
     setBusy('preview')
     setError('')
     setDone(null)
     setUndone('')
     setUnknownType('')
     try {
-      const result = await imports.preview(file, chosenColumn)
+      const result = await imports.preview(theFile, chosenColumn)
       setPreview(result)
       if (result.selected_column !== null) setColumn(String(result.selected_column))
     } catch (err) {
@@ -131,8 +136,20 @@ export default function ImportPage() {
     }
   }
 
+  // Turn the pasted cells into a small text file and preview it like any file.
+  function previewPasted() {
+    const lines = pasted.split(/\r?\n/).filter((line) => line.trim() !== '').length
+    if (!lines) return
+    const pastedFile = new File([pasted], `Pasted list ${date} (${lines} rows).txt`, { type: 'text/plain' })
+    setFile(pastedFile)
+    setInputKey((k) => k + 1) // clear the file box so it is clear what is being imported
+    setColumn('')
+    runPreview('', pastedFile)
+  }
+
   function reset() {
     setFile(null)
+    setPasted('')
     setPreview(null)
     setColumn('')
     setUnknownType('')
@@ -156,11 +173,11 @@ export default function ImportPage() {
             <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label className="grow">
-            Scanner file (.xlsx)
+            Scanner file (.xlsx or .csv)
             <input
               key={inputKey}
               type="file"
-              accept=".xlsx"
+              accept=".xlsx,.csv"
               onChange={(e) => {
                 setFile(e.target.files[0] || null)
                 setPreview(null)
@@ -176,6 +193,33 @@ export default function ImportPage() {
             {busy === 'preview' ? 'Reading file…' : 'Preview'}
           </button>
         </div>
+
+        <details style={{ marginTop: 16 }} open={pasted !== ''}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Or paste from Google Sheets</summary>
+          <p className="muted small">
+            In Google Sheets, click the column letter (or select the waybill cells), press Ctrl+C, then click
+            in the box below and press Ctrl+V. A header row like "Waybill" is fine.
+          </p>
+          <textarea
+            rows="6"
+            value={pasted}
+            placeholder={'303400000001\n303400000002\n...'}
+            onChange={(e) => {
+              setPasted(e.target.value)
+              setPreview(null)
+              setDone(null)
+            }}
+            style={{ width: '100%', fontFamily: 'monospace' }}
+          />
+          <div className="actions">
+            <span className="muted small">
+              {pasted.split(/\r?\n/).filter((line) => line.trim() !== '').length} line(s) pasted
+            </span>
+            <button onClick={previewPasted} disabled={pasted.trim() === '' || busy !== ''}>
+              {busy === 'preview' ? 'Reading…' : 'Preview pasted list'}
+            </button>
+          </div>
+        </details>
 
         {error && <p className="error">{error}</p>}
         {done && (
@@ -335,7 +379,15 @@ function PreviewPanel({
         <>
           <p className="muted">
             {preview.total_rows} row(s) read{preview.has_header ? ' (first row is a header)' : ''}.
+            {' '}Check this matches the number of scans in your sheet.
           </p>
+          {preview.other_sheets?.length > 0 && (
+            <p className="warning">
+              This file has other sheets with data that were NOT read: {preview.other_sheets.join(', ')}.
+              Only the first sheet is imported. Move those scans into one sheet, or import each sheet
+              separately (copy it and use "Paste from Google Sheets").
+            </p>
+          )}
 
           <div className="stats">
             {Object.entries(RESULTS).map(([key, info]) => (
