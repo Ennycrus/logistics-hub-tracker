@@ -12,6 +12,8 @@ Confirmed rules:
                     will be attempted again (rule 4a). A shipment that failed
                     on an earlier day and was not taken out again is not
                     counted in Return again.
+  Reasons         = the failure reasons of that day's Return only, so the two
+                    always agree.
   Rerouted        = left the hub (category "left_hub": Rerouted to Another Hub,
                     Returned to Sender...); in neither Delivered nor Current Day.
 
@@ -51,14 +53,16 @@ def latest_history_as_of(shipment_ids, date):
     return latest
 
 
-def reasons_summary(history_rows):
+def reasons_summary(history_rows, date):
     """
     Group failure reasons, e.g. "Customer unavailable - 6; Other (Gate locked) - 1".
-    Only shipments still at the hub with a reason are counted.
+    Only shipments that failed ON `date` are counted, so the reasons always
+    explain that day's Return. Older failures still at the hub are left out
+    (they are in Old Pending and Current Day).
     """
     counter = Counter()
     for row in history_rows:
-        if row.new_status.category in AT_HUB and row.failure_reason_id:
+        if row.new_status.category in AT_HUB and row.failure_reason_id and row.effective_date == date:
             label = row.failure_reason.name
             if row.failure_reason.is_other and row.reason_note:
                 label = f'{label} ({row.reason_note})'
@@ -139,7 +143,7 @@ def calculate_day(day):
         })
 
     config = HubConfig.get()
-    reasons = reasons_summary(latest.values())
+    reasons = reasons_summary(latest.values(), day.date)
     if config.reasons_format == HubConfig.REASONS_FORMAT_GROUPED:
         reasons_text = '; '.join(f"{r['reason']} - {r['count']}" for r in reasons)
     else:

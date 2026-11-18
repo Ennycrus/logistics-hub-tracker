@@ -134,6 +134,17 @@ class CalculationTests(TestCase):
             'Customer unavailable - 2; Customer requested rescheduling - 1; Other (Gate locked) - 1',
         )
 
+    def test_reasons_only_count_shipments_that_failed_that_day(self):
+        self.make('A', self.unsuccessful, self.unavailable, date=MON)
+        self.make('B', self.unsuccessful, self.other, note='Wrong address', date=MON)
+        self.make('C', self.unsuccessful, self.unavailable, date=TUE)
+        tuesday = self.summary(TUE)
+        self.assertEqual(tuesday['reasons_text'], 'Customer unavailable - 1')   # C only
+        self.assertEqual(tuesday['figures']['return'], 1)
+        self.assertEqual(tuesday['figures']['current_day'], 3)                 # A and B still counted here
+        self.assertEqual(self.summary(MON)['reasons_text'],
+                         'Customer unavailable - 1; Other (Wrong address) - 1')
+
     def test_text_format_leaves_reasons_for_manual_entry(self):
         config = HubConfig.get()
         config.reasons_format = HubConfig.REASONS_FORMAT_TEXT
