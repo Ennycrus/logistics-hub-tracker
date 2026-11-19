@@ -245,7 +245,8 @@ class ImportPreview(generics.GenericAPIView):
     """
     POST /api/imports/preview/   (form-data)
         file    the scanner .xlsx, or a .txt/.csv (a list pasted from Google Sheets)
-        column  optional, 0-based column number
+        column       optional, 0-based column number
+        all_columns  true = also take waybill numbers found in the other columns
 
     Reads the file and classifies every row. Saves NOTHING.
     Also says whether this exact file was imported before.
@@ -260,9 +261,13 @@ class ImportPreview(generics.GenericAPIView):
         upload = serializer.validated_data['file']
 
         data = upload.read()
-        result = preview_scan_file(BytesIO(data), column_index=serializer.validated_data.get('column'), file_name=upload.name)
+        all_columns = serializer.validated_data['all_columns']
+        result = preview_scan_file(
+            BytesIO(data), column_index=serializer.validated_data.get('column'),
+            file_name=upload.name, all_columns=all_columns,
+        )
 
-        previous = find_previous_import(data)
+        previous = find_previous_import(data, all_columns)
         result['file_name'] = upload.name
         result['already_imported'] = (
             {'batch_id': previous.pk, 'reporting_date': previous.reporting_date}
@@ -279,6 +284,7 @@ class ImportConfirm(generics.GenericAPIView):
         column          optional, 0-based column number
         unknown_type    base | temu | skip - needed only when new waybills
                         start with neither 1 nor 3034
+        all_columns     true = also take waybill numbers found in the other columns
 
     Saves the batch and creates the new shipments (all or nothing).
     """
@@ -296,6 +302,7 @@ class ImportConfirm(generics.GenericAPIView):
             column_index=data.get('column'),
             file_name=data['file'].name,
             unknown_type=data.get('unknown_type') or None,
+            all_columns=data['all_columns'],
         )
         return Response(ImportBatchSerializer(batch).data, status=status.HTTP_201_CREATED)
 

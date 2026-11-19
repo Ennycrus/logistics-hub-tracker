@@ -45,6 +45,7 @@ export default function ImportPage() {
   const [column, setColumn] = useState('')   // '' = let Django detect it
   const [inputKey, setInputKey] = useState(0) // change it to clear the file box
   const [unknownType, setUnknownType] = useState('') // 'base' | 'temu' | 'skip' | '' (not chosen)
+  const [allColumns, setAllColumns] = useState(false) // also take waybills from the other columns
 
   const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState('')        // 'preview' | 'confirm' | ''
@@ -64,7 +65,7 @@ export default function ImportPage() {
   }
   useEffect(loadHistory, [])
 
-  async function runPreview(chosenColumn = column, theFile = file) {
+  async function runPreview(chosenColumn = column, theFile = file, everyColumn = allColumns) {
     if (!theFile || busy) return
     setBusy('preview')
     setError('')
@@ -72,7 +73,7 @@ export default function ImportPage() {
     setUndone('')
     setUnknownType('')
     try {
-      const result = await imports.preview(theFile, chosenColumn)
+      const result = await imports.preview(theFile, chosenColumn, everyColumn)
       setPreview(result)
       if (result.selected_column !== null) setColumn(String(result.selected_column))
     } catch (err) {
@@ -110,7 +111,7 @@ export default function ImportPage() {
     setBusy('confirm')
     setError('')
     try {
-      const batch = await imports.confirm(file, date, column, unknownType)
+      const batch = await imports.confirm(file, date, column, unknownType, allColumns)
       setDone(batch)
       reset()
       loadHistory()
@@ -160,7 +161,8 @@ export default function ImportPage() {
     setFile(pastedFile)
     setInputKey((k) => k + 1) // clear the file box so it is clear what is being imported
     setColumn('')
-    runPreview('', pastedFile)
+    setAllColumns(false)
+    runPreview('', pastedFile, false)
   }
 
   function reset() {
@@ -169,6 +171,7 @@ export default function ImportPage() {
     setPreview(null)
     setColumn('')
     setUnknownType('')
+    setAllColumns(false)
     setInputKey((k) => k + 1)
   }
 
@@ -198,6 +201,7 @@ export default function ImportPage() {
                 setFile(e.target.files[0] || null)
                 setPreview(null)
                 setColumn('')
+                setAllColumns(false)
                 setDone(null)
               }}
             />
@@ -205,7 +209,7 @@ export default function ImportPage() {
         </div>
 
         <div className="actions">
-          <button onClick={() => runPreview('')} disabled={!file || busy !== ''}>
+          <button onClick={() => runPreview('', file, false)} disabled={!file || busy !== ''}>
             {busy === 'preview' ? 'Reading file…' : 'Preview'}
           </button>
         </div>
@@ -263,6 +267,10 @@ export default function ImportPage() {
           onConfirm={() => setAsking(true)}
           onCancel={reset}
           onOpenShipment={openShipment}
+          onAllColumnsChange={(value) => {
+            setAllColumns(value)
+            runPreview(column, file, value)
+          }}
         />
       )}
 
@@ -368,7 +376,7 @@ export default function ImportPage() {
 /* The preview: summary counts, column choice, and a searchable table of every row. */
 function PreviewPanel({
   preview, column, onColumnChange, unknownType, onUnknownTypeChange, busy, canConfirm, onConfirm, onCancel,
-  onOpenShipment,
+  onOpenShipment, onAllColumnsChange,
 }) {
   const [search, setSearch] = useState('')
   const [resultFilter, setResultFilter] = useState('')
@@ -409,9 +417,40 @@ function PreviewPanel({
       ) : (
         <>
           <p className="muted">
-            {preview.total_rows} row(s) read{preview.has_header ? ' (first row is a header)' : ''}.
+            {preview.total_rows} row(s) read{preview.has_header ? ' (first row is a header)' : ''}
+            {preview.waybills_found !== preview.total_rows && `, ${preview.waybills_found} waybill(s) found`}
+            {preview.all_columns && ' in all columns'}.
             {' '}Check this matches the number of scans in your sheet.
           </p>
+          {preview.elsewhere?.length > 0 && (
+            <div className="warning">
+              <strong>
+                {preview.elsewhere.reduce((sum, c) => sum + c.count, 0)} more waybill number(s) are in other
+                columns and will NOT be imported:
+              </strong>{' '}
+              {preview.elsewhere.map((c) => `${c.column} (${c.count})`).join(', ')}.
+              <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
+                <button type="button" className="small-button" onClick={() => onAllColumnsChange(true)} disabled={busy !== ''}>
+                  Import waybills from all columns
+                </button>
+              </div>
+            </div>
+          )}
+          {preview.all_columns && (
+            <p className="notice">
+              Reading waybill numbers from every column.{' '}
+              <button type="button" className="link-button" onClick={() => onAllColumnsChange(false)} disabled={busy !== ''}>
+                Only use the chosen column
+              </button>
+            </p>
+          )}
+          {preview.formulas_without_value > 0 && (
+            <p className="warning">
+              {preview.formulas_without_value} cell(s) contain a formula with no saved result, so they look empty and
+              their waybills cannot be read. Open the file in Excel or Google Sheets, save or download it again, then
+              import it (or copy the column and use "Paste from Google Sheets").
+            </p>
+          )}
           {preview.other_sheets?.length > 0 && (
             <p className="warning">
               This file has other sheets with data that were NOT read: {preview.other_sheets.join(', ')}.
@@ -477,8 +516,8 @@ function PreviewPanel({
                 <tr><th>Row</th><th>Waybill</th><th>Type</th><th>Result</th><th>Details</th></tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
-                  <tr key={r.row_number}>
+                {shown.map((r, i) => (
+                  <tr key={`${r.row_number}-${r.waybill}-${i}`}>
                     <td>{r.row_number}</td>
                     <td className="mono">{r.waybill || '(empty)'}</td>
                     <td>{r.shipment_type ? typeLabel(r.shipment_type) : r.result === 'new' ? <strong>?</strong> : '—'}</td>

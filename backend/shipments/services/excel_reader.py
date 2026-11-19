@@ -10,6 +10,14 @@ Accepted:
 Every row of the sheet is read, even when the file says it is smaller than it
 is (some apps save a wrong size, which used to make rows go missing).
 
+Nothing is skipped silently:
+  - A cell holding several waybills ("3034...1 3034...2", or one per line)
+    is split, and each waybill is imported.
+  - Waybill numbers found in OTHER columns are counted and reported; choose
+    "all columns" to import them too.
+  - Cells that hold a formula with no saved result (they look empty to the
+    app) are counted and reported.
+
 Nothing is saved to the database here. This file only answers:
   - Which column holds the waybill numbers?
   - What is in each row, and how should it be treated?
@@ -77,6 +85,33 @@ def looks_like_header(text):
     return any(word in lowered for word in HEADER_KEYWORDS)
 
 
+# Spaces, new lines, commas or semicolons between waybills in one cell.
+SEPARATORS = re.compile(r'[\s,;]+')
+
+
+def cell_waybills(value):
+    """
+    The waybill text(s) in one cell. Normally one; a cell holding several
+    real waybill numbers separated by spaces, new lines, commas or semicolons
+    gives each one. Anything else ("TEMU 01", "BAD ONE") stays as it is, so it
+    is still reported as invalid.
+    """
+    text = cell_to_text(value)
+    parts = [p for p in SEPARATORS.split(text) if p]
+    if len(parts) > 1 and all(looks_like_waybill(p) for p in parts):
+        return parts
+    return [text]
+
+
+def looks_like_waybill(text):
+    """
+    Used to spot waybills OUTSIDE the chosen column: digits only, 8 or more,
+    starting with a known prefix (3034 = TEMU, 1 = Base). Phone numbers
+    (0...), amounts and dates do not match.
+    """
+    return text.isdigit() and len(text) >= 8 and detect_type(text) is not None
+
+
 TEXT_EXTENSIONS = ('.txt', '.csv')
 
 
@@ -112,10 +147,12 @@ def read_text_rows(file, file_name):
 
 def read_rows(file, file_name=''):
     """
-    Return (rows, other_sheets): the non-blank rows of the file as
-    (row_number, values), and the names of any OTHER sheets in the workbook
-    that also have data (only the first, active sheet is read).
+    Return (rows, other_sheets, formulas_without_value): the non-blank rows
+    of the file as (row_number, values), the names of any OTHER sheets in the
+    workbook that also have data (only the first, active sheet is read), and
+    how many cells hold a formula with no saved result.
     """
+    formulas_without_value = 0
     if is_text_file(file_name):
         rows, other_sheets = read_text_rows(file, file_name)
     else:
@@ -140,10 +177,42 @@ def read_rows(file, file_name=''):
             ]
         finally:
             workbook.close()
+        formulas_without_value = count_formulas_without_value(file, rows)
 
-    if not rows:
+    if not rows and not formulas_without_value:
         raise ValidationError('The spreadsheet is empty.')
-    return rows, other_sheets
+    if not rows:
+        raise ValidationError(
+            f'The sheet has {formulas_without_value} formula cell(s) but no saved values, so it looks empty. '
+            'Open it in Excel or Google Sheets, then save or download it again.'
+        )
+    return rows, other_sheets, formulas_without_value
+
+
+def count_formulas_without_value(file, rows):
+    """
+    Cells that hold a formula but no saved result. They read as empty, so
+    their waybills would be missed. Returns how many there are.
+    """
+    try:
+        file.seek(0)
+        workbook = load_workbook(file, read_only=True, data_only=False)
+    except Exception:  # noqa: BLE001 - only a check; the real read already worked
+        return 0
+    try:
+        sheet = workbook.active
+        sheet.reset_dimensions()
+        values = {number: row for number, row in rows}
+        missing = 0
+        for row_number, cells in enumerate(sheet.iter_rows(values_only=True), start=1):
+            for index, cell in enumerate(cells):
+                if isinstance(cell, str) and cell.startswith('='):
+                    saved = values.get(row_number, [])
+                    if index >= len(saved) or saved[index] in (None, ''):
+                        missing += 1
+        return missing
+    finally:
+        workbook.close()
 
 
 def find_header(rows):
@@ -158,14 +227,15 @@ def find_header(rows):
     return None, None
 
 
-def preview_scan_file(file, column_index=None, file_name=''):
+def preview_scan_file(file, column_index=None, file_name='', all_columns=False):
     """
-    Read the file and classify every row. Saves nothing.
+    Read the file and classify every waybill. Saves nothing.
 
     column_index: 0-based column to use. Leave as None for automatic detection.
     file_name:    used to tell a .txt/.csv (pasted list) from an .xlsx file.
+    all_columns:  also take waybill numbers found in the other columns.
     """
-    rows, other_sheets = read_rows(file, file_name)
+    rows, other_sheets, formulas_without_value = read_rows(file, file_name)
     width = max(len(values) for _, values in rows)
 
     header, detected_index = find_header(rows)
@@ -197,6 +267,9 @@ def preview_scan_file(file, column_index=None, file_name=''):
         'has_header': header is not None,
         'total_rows': len(data_rows),
         'other_sheets': other_sheets,  # sheets with data that were NOT read
+        'formulas_without_value': formulas_without_value,
+        'all_columns': all_columns,
+        'elsewhere': [],  # waybills in other columns that are NOT being imported
         'counts': {},
         'rows': [],
     }
@@ -204,11 +277,35 @@ def preview_scan_file(file, column_index=None, file_name=''):
         result['message'] = 'Could not detect the waybill column. Please choose one.'
         return result
 
-    # Look up every waybill already in the database with ONE query.
-    texts = [
-        cell_to_text(values[selected]) if selected < len(values) else ''
-        for _, values in data_rows
+    # Every waybill to classify, as (row number, text). A cell holding several
+    # waybills gives several entries with the same row number.
+    entries = []
+    elsewhere = {}  # column index -> waybills found there (not imported)
+    for row_number, values in data_rows:
+        chosen = cell_waybills(values[selected]) if selected < len(values) else ['']
+        others = [
+            (index, text)
+            for index, value in enumerate(values) if index != selected
+            for text in cell_waybills(value) if looks_like_waybill(text)
+        ]
+        if all_columns:
+            if chosen != [''] or not others:
+                entries.extend((row_number, text) for text in chosen)
+            entries.extend((row_number, text) for _, text in others)
+        else:
+            entries.extend((row_number, text) for text in chosen)
+            for index, text in others:
+                elsewhere.setdefault(index, set()).add(text)
+
+    chosen_texts = {text for _, text in entries}
+    result['elsewhere'] = [
+        {'column': columns[index]['label'], 'count': len(texts - chosen_texts)}
+        for index, texts in sorted(elsewhere.items()) if texts - chosen_texts
     ]
+    result['waybills_found'] = len(entries)
+
+    # Look up every waybill already in the database with ONE query.
+    texts = [text for _, text in entries]
     existing = {
         s.waybill_number: s
         for s in Shipment.objects.filter(waybill_number__in=[t for t in texts if t])
@@ -222,7 +319,7 @@ def preview_scan_file(file, column_index=None, file_name=''):
     # New shipments by type. 'unknown' = new waybills matching neither prefix.
     new_by_type = {'base': 0, 'temu': 0, 'unknown': 0}
 
-    for (row_number, _), waybill in zip(data_rows, texts):
+    for row_number, waybill in entries:
         if not waybill:
             outcome, message = 'invalid', 'Empty waybill cell.'
         elif not WAYBILL_PATTERN.match(waybill):

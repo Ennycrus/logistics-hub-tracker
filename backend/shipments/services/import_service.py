@@ -31,21 +31,29 @@ from .excel_reader import preview_scan_file
 from .status_service import create_shipment
 
 
-def file_fingerprint(data):
-    """SHA-256 of the file's bytes. Same bytes -> same fingerprint."""
+def file_fingerprint(data, all_columns=False):
+    """
+    SHA-256 of the file's bytes. Same bytes -> same fingerprint.
+    Importing ALL columns of a file gets its own fingerprint, so a file first
+    imported from one column can be imported once more to pick up the rest
+    (waybills already in the system are not created twice).
+    """
+    if all_columns:
+        data = data + b'|all-columns'
     return hashlib.sha256(data).hexdigest()
 
 
-def find_previous_import(data):
-    """Return the earlier batch for this exact file, or None."""
-    return ImportBatch.objects.filter(file_hash=file_fingerprint(data)).first()
+def find_previous_import(data, all_columns=False):
+    """Return the earlier batch for this exact file (and column choice), or None."""
+    return ImportBatch.objects.filter(file_hash=file_fingerprint(data, all_columns)).first()
 
 
 UNKNOWN_CHOICES = ('base', 'temu', 'skip')
 
 
 @transaction.atomic
-def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx', unknown_type=None):
+def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx', unknown_type=None,
+                   all_columns=False):
     """
     Save the file as an ImportBatch and create shipments for the new waybills.
     Everything happens in one transaction: if anything fails, nothing is saved.
@@ -57,7 +65,7 @@ def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx
         raise ValidationError('Choose Base, TEMU or Skip for waybills with an unknown prefix.')
     data = file.read()
 
-    previous = find_previous_import(data)
+    previous = find_previous_import(data, all_columns)
     if previous:
         raise ValidationError(
             f'This exact file was already imported on {previous.imported_at:%d %b %Y} '
@@ -66,7 +74,9 @@ def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx
 
     # Classify again here, inside the transaction, so the result is current
     # even if something changed since you looked at the preview.
-    preview = preview_scan_file(BytesIO(data), column_index=column_index, file_name=file_name)
+    preview = preview_scan_file(
+        BytesIO(data), column_index=column_index, file_name=file_name, all_columns=all_columns,
+    )
     if preview['selected_column'] is None:
         raise ValidationError('Choose the waybill column before importing.')
 
@@ -94,7 +104,7 @@ def confirm_import(file, reporting_date, column_index=None, file_name='scan.xlsx
             new_by_type[row['shipment_type']] += 1
     batch = ImportBatch.objects.create(
         file_name=file_name,
-        file_hash=file_fingerprint(data),
+        file_hash=file_fingerprint(data, all_columns),
         reporting_date=reporting_date,
         column_index=preview['selected_column'],
         total_rows=preview['total_rows'],

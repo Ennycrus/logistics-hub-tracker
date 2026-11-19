@@ -127,13 +127,18 @@ function importForm(file, extra = {}) {
 }
 
 export const imports = {
-  preview: (file, column) =>
-    request('/imports/preview/', { method: 'POST', form: importForm(file, { column }) }),
+  // allColumns: also take waybill numbers found in the other columns.
+  preview: (file, column, allColumns = false) =>
+    request('/imports/preview/', {
+      method: 'POST', form: importForm(file, { column, all_columns: allColumns || undefined }),
+    }),
   // unknownType: 'base' | 'temu' | 'skip' for new waybills starting with neither 1 nor 3034.
-  confirm: (file, reportingDate, column, unknownType) =>
+  confirm: (file, reportingDate, column, unknownType, allColumns = false) =>
     request('/imports/confirm/', {
       method: 'POST',
-      form: importForm(file, { reporting_date: reportingDate, column, unknown_type: unknownType }),
+      form: importForm(file, {
+        reporting_date: reportingDate, column, unknown_type: unknownType, all_columns: allColumns || undefined,
+      }),
     }),
   list: (params) => request(`/imports/${query(params)}`),
   get: (id) => request(`/imports/${id}/`),

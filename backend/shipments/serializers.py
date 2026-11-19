@@ -97,7 +97,7 @@ class ImportUploadSerializer(serializers.Serializer):
     """The file (and optional column choice) sent for a preview."""
 
     file = serializers.FileField()
-    column = serializers.IntegerField(required=False, min_value=0)
+    column = serializers.IntegerField(required=False, min_value=0); all_columns = serializers.BooleanField(required=False, default=False)
 
     def validate_file(self, file):
         if not file.name.lower().endswith(('.xlsx', '.csv', '.txt')):
