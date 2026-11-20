@@ -9,6 +9,21 @@ function today() {
   return new Date().toLocaleDateString('en-CA')
 }
 
+// Week helpers for the import history (weeks run Monday to Sunday).
+function mondayOf(dateText) {
+  const d = new Date(`${dateText}T12:00:00`)
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return d.toLocaleDateString('en-CA')
+}
+function addDays(dateText, days) {
+  const d = new Date(`${dateText}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return d.toLocaleDateString('en-CA')
+}
+function shortDate(dateText) {
+  return new Date(`${dateText}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 // How each row result is shown. Matches ImportRow.RESULT_* in Django.
 const RESULTS = {
   new: { label: 'New', badge: 'delivered' },
@@ -32,7 +47,7 @@ function matchesWaybill(waybill, term) {
  *   2. Confirm  – Django saves the batch and creates the new shipments.
  * Each new waybill becomes TEMU (starts with 3034) or Base (starts with 1).
  * If some start with neither, you choose Base, TEMU or Skip before confirming.
- * Below that: the history of past imports, each with an Undo button for a wrong import.
+ * Below that: the import history one week at a time, each import with an Undo button.
  *
  * Pasting: copy the waybill column in Google Sheets (Ctrl+C) and paste it in the
  * box. It is sent as a small text file, so it goes through exactly the same
@@ -57,13 +72,14 @@ export default function ImportPage() {
   const [undoBusy, setUndoBusy] = useState(false)
 
   const [history, setHistory] = useState([])
+  const [week, setWeek] = useState(mondayOf(today())) // Monday of the week shown in the history
   // A shipment opened from the preview ("Update" on a Closed - review row).
   const [editing, setEditing] = useState(null) // { shipment, statuses, reasons }
 
   function loadHistory() {
-    imports.list().then((data) => setHistory(data.results)).catch(() => {})
+    imports.list({ week }).then((data) => setHistory(data.results)).catch(() => {})
   }
-  useEffect(loadHistory, [])
+  useEffect(loadHistory, [week])
 
   async function runPreview(chosenColumn = column, theFile = file, everyColumn = allColumns) {
     if (!theFile || busy) return
@@ -114,7 +130,10 @@ export default function ImportPage() {
       const batch = await imports.confirm(file, date, column, unknownType, allColumns)
       setDone(batch)
       reset()
-      loadHistory()
+      // Show the week the file was imported into.
+      const batchWeek = mondayOf(batch.reporting_date)
+      if (batchWeek !== week) setWeek(batchWeek)
+      else loadHistory()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -318,6 +337,24 @@ export default function ImportPage() {
 
       <div className="card">
         <h2>Import history</h2>
+        <div className="actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+          <button className="secondary small-button" onClick={() => setWeek(addDays(week, -7))}>← Previous week</button>
+          <strong>{shortDate(week)} – {shortDate(addDays(week, 6))}</strong>
+          <button
+            className="secondary small-button"
+            onClick={() => setWeek(addDays(week, 7))}
+            disabled={week >= mondayOf(today())}
+          >
+            Next week →
+          </button>
+          {week !== mondayOf(today()) && (
+            <button className="link-button" onClick={() => setWeek(mondayOf(today()))}>This week</button>
+          )}
+          <span className="muted small">
+            {history.length} import(s) · {history.reduce((sum, b) => sum + b.temu_new_count, 0)} new TEMU ·{' '}
+            {history.reduce((sum, b) => sum + b.base_new_count, 0)} new Base
+          </span>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
@@ -363,7 +400,7 @@ export default function ImportPage() {
                 </tr>
               ))}
               {history.length === 0 && (
-                <tr><td colSpan="11" className="muted">No imports yet.</td></tr>
+                <tr><td colSpan="11" className="muted">No imports this week.</td></tr>
               )}
             </tbody>
           </table>

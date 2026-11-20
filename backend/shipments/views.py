@@ -308,10 +308,27 @@ class ImportConfirm(generics.GenericAPIView):
 
 
 class ImportBatchList(generics.ListAPIView):
-    """GET /api/imports/ -> import history, newest first."""
+    """
+    GET /api/imports/              -> import history, newest first.
+    GET /api/imports/?week=<date>  -> only the imports whose reporting date is in
+                                      that date's week (Monday to Sunday).
+    """
 
-    queryset = ImportBatch.objects.all()
     serializer_class = ImportBatchSerializer
+
+    def get_queryset(self):
+        queryset = ImportBatch.objects.all()
+        week = self.request.query_params.get('week')
+        if week:
+            try:
+                day = datetime.date.fromisoformat(week)
+            except ValueError:
+                raise ValidationError('week must be a date like 2026-11-20.')
+            monday = day - datetime.timedelta(days=day.weekday())
+            queryset = queryset.filter(
+                reporting_date__range=(monday, monday + datetime.timedelta(days=6)),
+            ).order_by('-reporting_date', '-imported_at')
+        return queryset
 
 
 class ImportBatchDetail(generics.RetrieveDestroyAPIView):
