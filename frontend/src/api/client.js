@@ -198,3 +198,15 @@ export const settings = {
   updateReason: (id, changes) =>
     request(`/settings/reasons/${id}/`, { method: 'PATCH', body: changes }),
 }
+
+// --- Stock count -------------------------------------------------------------
+
+export const stockCount = {
+  // Compare a scan of the shelves with the app. Saves nothing.
+  // type: '' (TEMU and Base) | 'temu' | 'base'
+  check: (file, column, allColumns = false, type = '') =>
+    request('/stock-count/', {
+      method: 'POST',
+      form: importForm(file, { column, all_columns: allColumns || undefined, shipment_type: type }),
+    }),
+}

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import stock_count_api, views
 
 urlpatterns = [
     path('shipments/', views.ShipmentList.as_view(), name='shipment-list'),
@@ -13,4 +13,6 @@ urlpatterns = [
     path('imports/preview/', views.ImportPreview.as_view(), name='import-preview'),
     path('imports/confirm/', views.ImportConfirm.as_view(), name='import-confirm'),
     path('imports/<int:pk>/', views.ImportBatchDetail.as_view(), name='import-detail'),
+
+    path('stock-count/', stock_count_api.StockCountView.as_view(), name='stock-count'),
 ]

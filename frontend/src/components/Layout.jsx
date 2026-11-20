@@ -6,7 +6,7 @@ const PAGES = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { to: '/import', label: 'Import', icon: 'upload' },
   { to: '/shipments', label: 'Shipments', icon: 'box' },
-  { to: '/pending', label: 'Pending', icon: 'clock' },
+  { to: '/pending', label: 'Pending', icon: 'clock' }, { to: '/stock-count', label: 'Stock Count', icon: 'check' },
   { to: '/report', label: 'Daily Report', icon: 'report' },
   { to: '/weekly', label: 'Weekly', icon: 'week' },
   { to: '/hub-report', label: 'Saturday Report', icon: 'send' },
@@ -25,7 +25,7 @@ const ICON_PATHS = {
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   week: 'M4 5h16v16H4zM4 10h16M9 3v4M15 3v4M8 14h2M14 14h2M8 18h2',
   send: 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z',
-  menu: 'M3 6h18M3 12h18M3 18h18',
+  menu: 'M3 6h18M3 12h18M3 18h18', check: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 }
 
