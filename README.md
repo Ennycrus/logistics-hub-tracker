@@ -9,16 +9,21 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 ## Features
 
 - **Scanner import with preview** - finds the waybill column automatically, flags duplicates, invalid rows and already-closed shipments. The same file can never be imported twice.
+- **Paste from Google Sheets** - copy the waybill column and paste it on the Import page; it goes through the same preview and checks as a file.
+- **No waybill skipped silently** - a cell holding several waybills is split, waybills found in other columns are reported (with an option to import all columns), and the preview warns about formula cells with no saved value and about other sheets that were not read.
+- **Import history by week** - one Monday-Sunday week at a time, with that week's totals.
+- **Stock count** - scan every parcel on the shelves and compare with the app: missing from shelves, scanned but delivered or left the hub, and scanned but never imported. Nothing is saved; fix each row and check again.
 - **Undo a wrong import** - removes the import and only the shipments it created. Refused if any of them already has a status update, is in a finalized report, or appears in a later import.
 - **Two shipment types, sorted by waybill prefix** - `3034...` = TEMU, `1...` = Base. Waybills with any other prefix make the import ask: Base, TEMU or Skip.
-- **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note.
+- **Status tracking with full history** - every change is recorded with its date. Failed deliveries need a reason; "Other" needs an explanation; changing a delivered shipment needs a note. A date before the shipment arrived is refused, and recording a change on a day whose report is already finalized asks first.
+- **Remembered date** - the date you record results for is kept while you work, with a clear "Recording for ..." notice and a **Use today** button.
 - **Who delivered it** - marking a shipment Delivered asks for Rider, Captain or 3PL. It can be filled in later for older deliveries without a note; the delivery keeps its original date.
 - **Search by the last four digits** - typing exactly 4 digits finds waybills that end with them.
-- **Check filters on Shipments** - "Delivered, nobody recorded" and "Stuck: no update for 7+ days", linked from the Saturday report warnings.
+- **Check filters on Shipments** - "Delivered, nobody recorded" and "Stuck: no update for 7+ days", linked from the Saturday report warnings. Delivered shipments are hidden unless you tick **Show delivered**, choose a delivered filter or search.
 - **Track button** - opens the shipment on the courier's public tracking page (the address is set in Settings).
 - **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
 - **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
-- **Reconciliation check** - Delivered + Current Day + Rerouted must equal Total Available.
+- **Reconciliation check** - Delivered + Current Day + Left hub (rerouted / initiated return) must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
 - **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
 - **Saturday hub report** - the manager's six items (TEMU pending, Base pending, delivered by riders/captains/3PLs, not in hub, fuel, incidents), ready to copy into WhatsApp or email and download as Excel. Fuel and incidents are entered each day on the Daily Report page, and every change to them is kept. Every save of the report is kept as a version.
@@ -26,7 +31,8 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Export** - download the report as Excel, or copy the row straight into a Google Sheet.
 - **Pending list, Report history, Settings** - statuses and failure reasons are editable.
 - **Login protection** - automatic log-out after 15 minutes without activity, login locked for 5 minutes after 5 wrong passwords, and a Change password form in Settings.
-- **Backup and reset commands** for safe day-to-day use.
+- **Backups** - a daily automatic backup, a second copy in another folder (e.g. Google Drive), and a `check_backup` command that proves a backup can be restored.
+- **Reset command** for starting over safely.
 
 ## How the report figures are calculated
 
@@ -39,10 +45,10 @@ Each report (TEMU or Base) only counts shipments of its own type.
 | Total Available | Inbound + Old Pending |
 | Delivered | Delivered on this date |
 | Current Day | Still at the hub at the end of the day (not checked, outstanding or returned) |
-| Return | Returned to the hub (also counted inside Current Day) |
-| Reasons | Failure reasons grouped with counts, e.g. "Customer unavailable - 3" |
+| Return | Delivery Unsuccessful or Returned to Hub recorded on this date (also counted inside Current Day) |
+| Reasons | Failure reasons of this day's unsuccessful deliveries, grouped with counts, e.g. "Customer unavailable - 3" |
 
-Rerouted shipments leave the hub and are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
+Shipments that left the hub (Rerouted, Initiated Return, or any status in the **Left hub** category) are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
 
 ## How the weekly delivery rate is calculated
 
@@ -76,7 +82,7 @@ One report for the whole hub (TEMU and Base together), for the Monday-Saturday w
 
 ## Project structure
 
-````
+```
 hub-tracker/
   backend/                 Django project
     config/                settings and URLs
@@ -87,13 +93,13 @@ hub-tracker/
     requirements.txt
   frontend/                React app (Vite)
     src/api/client.js      the one file that talks to Django
-    src/pages/             Dashboard, Import, Shipments, Pending, Daily Report, Weekly, Saturday Report, History, Settings
+    src/pages/             Dashboard, Import, Shipments, Pending, Stock Count, Daily Report, Weekly, Saturday Report, History, Settings
     src/components/        layout, status editor, dialogs, Base/TEMU switch
   docs/
     DAILY_ROUTINE.md       step-by-step daily guide
-````
+```
 
-The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `reports/services/calculations.py`, `reports/services/weekly.py` and `reports/services/weekly_hub.py`), so the API views stay thin.
+The business rules live in `services/` folders (for example `shipments/services/status_service.py`, `shipments/services/import_service.py`, `shipments/services/stock_count.py`, `reports/services/calculations.py`, `reports/services/weekly.py` and `reports/services/weekly_hub.py`), so the API views stay thin.
 
 ## Setup (Windows)
 
@@ -101,42 +107,42 @@ You need **Python 3.12+**, **Node.js 20+** and **Git**.
 
 ### 1. Backend
 
-````powershell
+```powershell
 git clone https://github.com/Ennycrus/logistics-hub-tracker.git
 cd logistics-hub-tracker\backend
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-````
+```
 
 Make a secret key and paste it into `.env` (between the single quotes):
 
-````powershell
+```powershell
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-````
+```
 
 Then create the database and your login:
 
-````powershell
+```powershell
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
-````
+```
 
 ### 2. Frontend (in a second terminal)
 
-````powershell
+```powershell
 cd logistics-hub-tracker\frontend
 npm install
 npm run dev
-````
+```
 
 Open **http://localhost:5173** and log in.
 
 ## Daily use
 
-See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, enter the day's fuel and incidents, back up, and on Saturday send the Saturday report.
+See **[docs/DAILY_ROUTINE.md](docs/DAILY_ROUTINE.md)**: import the files, update statuses, check Pending, finalize the TEMU and Base reports, enter the day's fuel and incidents, back up, and on Saturday count the shelves and send the Saturday report.
 
 ## Useful commands
 
@@ -144,9 +150,10 @@ Run these in `backend` with the venv active.
 
 | Command | What it does |
 | --- | --- |
-| `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30) |
+| `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30), plus a second copy in `BACKUP_COPY_DIR` if it is set in `.env` |
+| `python manage.py check_backup` | Opens the newest backup read-only, checks it is healthy and compares its counts with the app (`--dir` for another folder, or give a file) |
 | `python manage.py reset_data` | Deletes all shipments, imports, reports, fuel logs and Saturday reports after a backup; keeps users and settings |
-| `python manage.py test` | Runs the test suite (305 tests, about a minute) |
+| `python manage.py test` | Runs the test suite (363 tests, under a minute) |
 
 Older command-line report tools (`open_day`, `day_summary`, `finalize_report`, `export_report`...) also exist and work on the TEMU report.
 
@@ -156,11 +163,13 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/shipments/` | List shipments (`search`, `category`, `type`, `delivered_by`, `stale_days`, `page`) |
+| `GET /api/shipments/` | List shipments (`search`, `category`, `type`, `delivered_by`, `stale_days`, `hide_delivered`, `page`) |
 | `POST /api/shipments/<id>/status/` | Change one status |
 | `POST /api/shipments/bulk-status/` | Change many, all or nothing |
-| `POST /api/imports/preview/` | Read a scanner file, save nothing |
-| `POST /api/imports/confirm/` | Import it (`unknown_type`: base, temu or skip) |
+| `POST /api/imports/preview/` | Read a scanner file (.xlsx, .csv or a pasted list), save nothing (`all_columns` to read every column) |
+| `POST /api/imports/confirm/` | Import it (`unknown_type`: base, temu or skip; `all_columns`) |
+| `GET /api/imports/?week=` | Import history for the Monday-Sunday week containing that date |
+| `POST /api/stock-count/` | Compare a shelf scan with the app, save nothing (`shipment_type`: temu or base) |
 | `DELETE /api/imports/<id>/` | Undo an import (refused if its shipments were worked on) |
 | `GET/PATCH /api/reports/<date>/` | The day's draft or finalized report |
 | `POST /api/reports/<date>/finalize/` | Freeze the report |
@@ -178,7 +187,7 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 ## Security notes
 
 - The secret key lives in `backend/.env`, which is never committed. Only `.env.example` is in the repository.
-- The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never leaves your computer.
+- The database (`*.sqlite3`), backups and scanner files (`*.xlsx`) are ignored by Git, so real shipment data never goes to GitHub. The only copy that leaves the laptop is the backup copy in your own `BACKUP_COPY_DIR` folder, if you set one.
 - `DEBUG` is off unless `.env` turns it on.
 - Only the website's login session can reach the API, and Excel files are read with `defusedxml` protection.
 - After **15 minutes without activity** you are logged out, both on the website and on the server. Logging out also ends the session on the server. Change `IDLE_TIMEOUT_MINUTES` in `settings.py` to adjust it.

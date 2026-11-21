@@ -8,16 +8,16 @@ The app needs two terminals open in VS Code: one for Django, one for the website
 
 1. **Terminal 1, Django** (in the `backend` folder):
 
-    ````
+    ```
     venv\Scripts\activate
     python manage.py runserver
-    ````
+    ```
 
 2. **Terminal 2, website** (click **+** in the terminal panel, then go to the `frontend` folder):
 
-    ````
+    ```
     npm run dev
-    ````
+    ```
 
 3. Open **http://localhost:5173** and log in with your username and password.
 
@@ -32,13 +32,23 @@ Import every gun-scanner file for the day; each waybill is sorted by its prefix:
 5. Click **Confirm import**, check the summary box, then **Import**.
 6. Repeat for the next file (for example the Base file after the TEMU file).
 
-The same file can never be imported twice, and a waybill already in the system is never created again. Imported the wrong file or chose the wrong date? Click **Undo** on that row in **Import history** straight away, before updating any statuses.
+**Scans in Google Sheets?** Open **Or paste from Google Sheets**, copy the waybill column (Ctrl+C), paste it in the box, then click **Preview pasted list**. Everything else is the same.
+
+Before confirming, check the line under **Waybill column**: the number of rows and waybills found should match your scan count. The preview also warns you if:
+
+- **waybill numbers are in other columns**: click **Import waybills from all columns**;
+- **cells contain a formula with no saved result**: download the sheet again, or paste the column instead;
+- **other sheets have data**: only the first sheet is read, so import the others separately.
+
+A **Closed - review** row is a delivered or departed shipment that was scanned again. Click **Update status** on it if it is really back in the hub.
+
+The same file can never be imported twice, and a waybill already in the system is never created again. Imported the wrong file or chose the wrong date? Click **Undo** on that row in **Import history** straight away, before updating any statuses. **Import history** shows one week at a time; use **Previous week** to find older imports.
 
 ## 3. Update statuses
 
 Every shipment starts as **Not Yet Checked**; record its real result from the company website before finalizing.
 
-1. Go to **Shipments** and set the filter to **Not yet checked**. Use **TEMU only** or **Base only** to work one report at a time.
+1. Go to **Shipments** and set the filter to **Not yet checked**. Use **TEMU only** or **Base only** to work one report at a time. Delivered shipments are hidden; tick **Show delivered** to see them.
 2. One shipment: click **Update**, choose the status, then save.
 3. Many with the same result: tick their boxes, click **Update selected**. If one breaks a rule, nothing is saved and the failures are listed.
 4. Click a waybill number to see its history and add your own notes.
@@ -48,7 +58,10 @@ Rules the app enforces:
 - **Delivery Unsuccessful** needs a failure reason; reason **Other** needs a written explanation.
 - **Delivered** needs **Delivered by**: **Rider**, **Captain** or **3PL**. With **Update selected**, tick only the shipments one group delivered (for example all the riders' ones), then choose once.
 - Changing a shipment that is already **Delivered** needs a note saying why.
-- **Date this happened** defaults to today; set it to yesterday when recording yesterday's result this morning.
+- **Date this happened** defaults to today; set it to yesterday when recording yesterday's result this morning. The app remembers the date you chose and shows **Recording for ...** until you click **Use today**, so check it before saving.
+- A date before the shipment arrived is refused.
+- If that day's report is already finalized, the app asks first, because the frozen report would not show the change. If that report was wrong, start a correction for that day so the two stay in step.
+- A parcel sent back to the sender: choose **Initiated Return**. It leaves the hub and is no longer pending.
 
 ## 4. Review Pending
 
@@ -88,13 +101,20 @@ A backup runs by itself every evening at 7 pm (and catches up when the laptop is
 
 1. Open a third terminal in the `backend` folder, run `venv\Scripts\activate`, then:
 
-    ````
+    ```
     python manage.py backup_db
-    ````
+    ```
 
-2. Check it prints **Backup saved: ...**.
+2. Check it prints **Backup saved: ...** and **Copy saved: ...** (the copy in Google Drive).
 3. Stop both servers with **Ctrl+C** in each terminal.
-4. Once a week, copy the `backend\backups` folder to Google Drive or a flash drive.
+
+Once a week, check that the newest backup can really be restored:
+
+```
+python manage.py check_backup
+```
+
+It should say **File is healthy** and **This backup can be restored**, with counts close to the app's.
 
 ## 8. Saturday: check the weekly delivery
 
@@ -107,9 +127,23 @@ The delivery week runs Monday to Saturday, and its figures come only from finali
 
 Available = Monday's Old Pending + every Inbound from Monday to Saturday, so each shipment is counted once however many days it waited.
 
-## 9. Saturday evening: send the Saturday report
+## 9. Saturday: count the shelves
 
-The manager's weekly report, for TEMU and Base together. Do it after step 8.
+A stock count checks that the app matches what is really in the hub, so the Saturday report is right.
+
+1. Scan every parcel on the shelves into one file (or a Google Sheet).
+2. Go to **Stock Count**, choose **TEMU and Base** (or one type if they are on separate shelves), and upload or paste the scan, then click **Check scan**.
+3. Work through each list:
+    - **Missing from shelves**: the app says it is in the hub, but it was not scanned. Find it, or click **Update status** (delivered without an update, initiated return...).
+    - **Scanned but delivered / left hub**: it is on the shelf, so the status is wrong. Click **Update status**.
+    - **Scanned but not in the app**: never imported. Click **Copy waybills**, then paste them on **Import** with the day they arrived as the reporting date.
+4. Click **Check again** until it says **Everything matches**.
+
+Nothing is saved by the check itself; only the status updates and imports you make are.
+
+## 10. Saturday evening: send the Saturday report
+
+The manager's weekly report, for TEMU and Base together. Do it after steps 8 and 9.
 
 1. Go to **Saturday Report**.
 2. Read the warnings and fix them first:
@@ -137,10 +171,11 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 
 **Restore a backup.**
 
-1. Stop Django (**Ctrl+C**).
-2. Rename `backend\db.sqlite3` to `db_broken.sqlite3`.
-3. Copy the backup from `backend\backups` next to `manage.py` and rename it `db.sqlite3`.
-4. Start Django again.
+1. Check the backup first: `python manage.py check_backup "<path to the backup file>"`.
+2. Stop Django (**Ctrl+C**).
+3. Rename `backend\db.sqlite3` to `db_broken.sqlite3`.
+4. Copy the backup from `backend\backups` (or Google Drive) next to `manage.py` and rename it `db.sqlite3`.
+5. Start Django again. If `check_backup` said the structure is different, run `python manage.py migrate` first.
 
 ## Troubleshooting
 
@@ -149,7 +184,10 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 | "Cannot reach the server. Is Django running?" | Start Terminal 1 (`python manage.py runserver`). |
 | "Security check failed. Refresh the page..." | Press **F5** and try again. |
 | Page looks old after an update | Press **Ctrl+Shift+R**. |
-| "This exact file was already imported..." | The file is already in; check **Import history**. |
+| "This exact file was already imported..." | The file is already in; check **Import history**. To pick up waybills from other columns, use **Import waybills from all columns** (allowed once for the same file). |
+| Import shows fewer rows than you scanned | Read the warnings under **Waybill column** (other columns, formula cells, other sheets), or paste the column from Google Sheets instead. |
+| "This shipment only arrived on ..." | The date is before its arrival; check **Date this happened** (the remembered date may be an old one). |
+| Backup prints no **Copy saved** line | `BACKUP_COPY_DIR` is not set in `backend\.env`, or Google Drive is not running. |
 | "This import cannot be undone..." | Its shipments were already worked on or reported. Fix them one by one on **Shipments**, or start a correction if the report is finalized. |
 | "Unknown command" or "No module named django" | Activate the venv first: `venv\Scripts\activate` in the `backend` folder. |
 | Check line says **Difference** instead of Balanced | Look for shipments without a result on **Pending**; do not finalize until it balances or you know why. |
