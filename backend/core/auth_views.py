@@ -17,6 +17,7 @@ expires and you must log in again.
 Wrong passwords: after LOGIN_MAX_ATTEMPTS failures for a username, logging in
 as that user is refused for LOGIN_LOCKOUT_MINUTES (even with the right password).
 The lock itself is in core/login_lock.py, so it also covers the admin login.
+Every login, logout and password change is written to the security log.
 """
 
 from django.conf import settings
@@ -31,6 +32,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .login_lock import record_failure, too_many_failures
+from .security_log import log_event
 
 
 def user_data(user):
@@ -85,6 +87,7 @@ class LoginView(APIView):
 
         # Checked BEFORE the password, so a locked account can't be guessed at all.
         if too_many_failures(username):
+            log_event('LOGIN_BLOCKED', request, user=username)
             return locked_response()
 
         user = authenticate(request, **serializer.validated_data)  # counts a wrong password itself
@@ -105,6 +108,8 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        if request.user.is_authenticated:
+            log_event('LOGOUT', request, user=request.user.get_username())
         logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -134,10 +139,13 @@ class ChangePasswordView(APIView):
         username = user.get_username()
 
         if too_many_failures(username):
+            log_event('PASSWORD_CHANGE_BLOCKED', request, user=username)
             return locked_response()
         if not user.check_password(data['current_password']):
             record_failure(username)
+            log_event('PASSWORD_CHANGE_FAILED', request, user=username)
             if too_many_failures(username):
+                log_event('ACCOUNT_LOCKED', request, user=username)
                 return locked_response()
             raise ValidationError({'current_password': ['Your current password is wrong.']})
         if data['new_password'] == data['current_password']:
@@ -150,4 +158,5 @@ class ChangePasswordView(APIView):
         user.set_password(data['new_password'])
         user.save()
         update_session_auth_hash(request, user)  # keep this login session valid
+        log_event('PASSWORD_CHANGED', request, user=username)
         return Response({'detail': 'Password changed.'})

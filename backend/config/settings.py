@@ -59,7 +59,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware', 'core.security_log.SecurityLogMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -153,6 +153,37 @@ SESSION_SAVE_EVERY_REQUEST = True; SESSION_COOKIE_SAMESITE = 'Strict'; CSRF_COOK
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_MINUTES = 5; AUTHENTICATION_BACKENDS = ['core.login_lock.LockoutBackend']  # the lock covers every login page
 
+# Security log: backend/logs/security.log (see core/security_log.py).
+# 1 MB per file, the 5 newest old files kept (security.log.1 ... .5).
+# Django's own security warnings (e.g. a forged Host header) go there too.
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {'one_line': {'()': 'core.security_log.OneLine'}},
+    'formatters': {
+        'security': {'format': '%(asctime)s  %(message)s', 'datefmt': '%Y-%m-%d %H:%M:%S'},
+    },
+    'handlers': {
+        'security_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'security.log',
+            'maxBytes': 1024 * 1024,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'delay': True,  # only opened when something is written
+            'formatter': 'security',
+            'filters': ['one_line'],
+        },
+    },
+    'loggers': {
+        'hub.security': {'handlers': ['security_file'], 'level': 'INFO', 'propagate': False},
+        'django.security': {'handlers': ['security_file'], 'level': 'WARNING', 'propagate': False},
+    },
+}
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    LOGGING['handlers']['security_file'] = {'class': 'logging.NullHandler'}  # tests never write the real log
 
 # Django REST Framework
 REST_FRAMEWORK = {

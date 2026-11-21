@@ -17,6 +17,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.core.cache import cache
 
+from .security_log import log_event
+
 
 def failures_key(username):
     return f'login-failures:{username.strip().lower()}'
@@ -41,10 +43,15 @@ class LockoutBackend(ModelBackend):
         if not username:
             return None
         if too_many_failures(username):
+            log_event('LOGIN_BLOCKED', request, user=username)
             return None  # locked: the password is not even checked
         user = super().authenticate(request, username=username, password=password, **kwargs)
         if user is None:
             record_failure(username)
+            log_event('LOGIN_FAILED', request, user=username)
+            if too_many_failures(username):
+                log_event('ACCOUNT_LOCKED', request, user=username)
         else:
             cache.delete(failures_key(username))
+            log_event('LOGIN_OK', request, user=username)
         return user
