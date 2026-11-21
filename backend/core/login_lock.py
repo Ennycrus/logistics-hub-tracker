@@ -12,6 +12,8 @@ used to keep guessing.
 The count lives in Django's memory cache, so restarting Django also clears it.
 """
 
+import hashlib
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
@@ -21,7 +23,10 @@ from .security_log import log_event
 
 
 def failures_key(username):
-    return f'login-failures:{username.strip().lower()}'
+    # A fingerprint of the username, not the username itself: whatever an
+    # attacker types (new lines, very long text...), the key stays short and safe.
+    digest = hashlib.sha256(username.strip().lower().encode()).hexdigest()
+    return f'login-failures:{digest}'
 
 
 def too_many_failures(username):
