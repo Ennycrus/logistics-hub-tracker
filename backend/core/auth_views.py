@@ -121,6 +121,9 @@ class ChangePasswordView(APIView):
     You must be logged in and know your current password. The new password must
     pass Django's password rules (length, not too common, not all numbers, not
     like your username). You stay logged in afterwards.
+
+    Wrong current passwords count towards the same lock as the login pages, so
+    someone at your unlocked laptop can't use this form to guess your password.
     """
 
     def post(self, request):
@@ -128,11 +131,14 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         user = request.user
+        username = user.get_username()
 
-        if too_many_failures(user.get_username()): return locked_response()  # same lock as the login pages
+        if too_many_failures(username):
+            return locked_response()
         if not user.check_password(data['current_password']):
-            record_failure(user.get_username())
-            if too_many_failures(user.get_username()): return locked_response()        if not user.check_password(data['current_password']):
+            record_failure(username)
+            if too_many_failures(username):
+                return locked_response()
             raise ValidationError({'current_password': ['Your current password is wrong.']})
         if data['new_password'] == data['current_password']:
             raise ValidationError({'new_password': ['Choose a password different from the current one.']})
