@@ -13,8 +13,10 @@ The copy uses SQLite's own backup feature, so it is safe even while the
 website is running. Old copies beyond --keep are deleted, newest kept.
 
 To RESTORE a copy:
-    1. Stop Django (Ctrl+C).
+    1. Stop Django (Ctrl+C), and close anything else using the database.
     2. Rename db.sqlite3 to db_broken.sqlite3 (keep it, just in case).
+       If db.sqlite3-wal or db.sqlite3-shm are still there, rename them too
+       (db_broken.sqlite3-wal, db_broken.sqlite3-shm).
     3. Copy the backup file next to manage.py and rename it db.sqlite3.
     4. Start Django again.
 """
@@ -58,6 +60,9 @@ class Command(BaseCommand):
         destination = sqlite3.connect(target)
         try:
             connection.connection.backup(destination)  # page-by-page safe copy
+            # The app's database uses WAL mode; the copy is made a normal
+            # single file, so it can be copied or restored on its own.
+            destination.execute('PRAGMA journal_mode=DELETE')
         finally:
             destination.close()
 

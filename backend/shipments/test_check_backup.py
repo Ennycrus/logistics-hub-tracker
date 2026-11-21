@@ -69,3 +69,11 @@ class CheckBackupTests(TransactionTestCase):
         before = file.read_bytes()
         self.check()
         self.assertEqual(file.read_bytes(), before)
+        
+
+    def test_backup_is_one_file_that_stays_one_file(self):
+        # The app's database uses WAL mode (extra -wal/-shm files while it runs).
+        # A backup must be a single normal file, and checking it must not add any.
+        self.backup()
+        self.check()
+        self.assertEqual([f.name for f in self.folder.iterdir()], [next(self.folder.glob('hub_*.sqlite3')).name])

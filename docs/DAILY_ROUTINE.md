@@ -173,7 +173,7 @@ Item 4 (not in hub) is already included in items 1 and 2, because pending means 
 
 1. Check the backup first: `python manage.py check_backup "<path to the backup file>"`.
 2. Stop Django (**Ctrl+C**).
-3. Rename `backend\db.sqlite3` to `db_broken.sqlite3`.
+3. Rename `backend\db.sqlite3` to `db_broken.sqlite3`. If `db.sqlite3-wal` or `db.sqlite3-shm` are there too, rename them the same way (`db_broken.sqlite3-wal`, `db_broken.sqlite3-shm`).
 4. Copy the backup from `backend\backups` (or Google Drive) next to `manage.py` and rename it `db.sqlite3`.
 5. Start Django again. If `check_backup` said the structure is different, run `python manage.py migrate` first.
 
