@@ -94,3 +94,21 @@ def stock_count(file, column_index=None, file_name='', all_columns=False, shipme
     })
     result['pending_in_app'] = result['matched'] + len(result['missing'])
     return result
+
+
+
+def pending_shipments(shipment_type=None):
+    """
+    Every shipment the app says is at the hub (not delivered, not left), oldest
+    first: the tick-off list for a stock count done from the pending list.
+    """
+    today = timezone.localdate()
+    shipments = (
+        Shipment.objects.select_related('status')
+        .annotate(last_change=Max('history__effective_date'))
+        .filter(status__category__in=OPEN_CATEGORIES)
+        .order_by('first_seen_date', 'waybill_number')
+    )
+    if shipment_type:
+        shipments = shipments.filter(shipment_type=shipment_type)
+    return [shipment_row(s, today) for s in shipments]

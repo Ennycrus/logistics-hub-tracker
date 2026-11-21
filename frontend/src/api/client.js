@@ -201,7 +201,7 @@ export const settings = {
 
 // --- Stock count -------------------------------------------------------------
 
-export const stockCount = {
+export const stockCount = { pending: (type = '') => request(`/stock-count/pending/${query({ type })}`), // every pending shipment, oldest first
   // Compare a scan of the shelves with the app. Saves nothing.
   // type: '' (TEMU and Base) | 'temu' | 'base'
   check: (file, column, allColumns = false, type = '') =>

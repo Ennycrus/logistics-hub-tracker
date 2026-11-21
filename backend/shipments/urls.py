@@ -14,5 +14,5 @@ urlpatterns = [
     path('imports/confirm/', views.ImportConfirm.as_view(), name='import-confirm'),
     path('imports/<int:pk>/', views.ImportBatchDetail.as_view(), name='import-detail'),
 
-    path('stock-count/', stock_count_api.StockCountView.as_view(), name='stock-count'),
+    path('stock-count/', stock_count_api.StockCountView.as_view(), name='stock-count'), path('stock-count/pending/', stock_count_api.StockPendingList.as_view(), name='stock-count-pending'),
 ]

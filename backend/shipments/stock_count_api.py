@@ -6,16 +6,21 @@ POST /api/stock-count/   (form-data)
     shipment_type  optional: temu | base (count only one type)
 
 Compares the scan with the app (see services/stock_count.py). Saves NOTHING.
+
+GET /api/stock-count/pending/?type=temu|base
+    Every shipment the app says is at the hub, oldest first (not paged):
+    the tick-off list for counting from the pending list.
 """
 
 from io import BytesIO
 
 from rest_framework import generics, serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import SHIPMENT_TYPE_CHOICES
+from .models import SHIPMENT_TYPE_CHOICES, TYPE_BASE, TYPE_TEMU
 from .serializers import ImportUploadSerializer
-from .services.stock_count import stock_count
+from .services.stock_count import pending_shipments, stock_count
 
 
 class StockCountSerializer(ImportUploadSerializer):
@@ -36,3 +41,12 @@ class StockCountView(generics.GenericAPIView):
         )
         result['file_name'] = upload.name
         return Response(result)
+
+
+class StockPendingList(generics.GenericAPIView):
+    def get(self, request):
+        shipment_type = request.query_params.get('type', '')
+        if shipment_type not in ('', TYPE_TEMU, TYPE_BASE):
+            raise ValidationError({'type': 'Use temu or base.'})
+        rows = pending_shipments(shipment_type or None)
+        return Response({'count': len(rows), 'results': rows})
