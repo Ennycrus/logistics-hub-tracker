@@ -1,0 +1,50 @@
+"""
+The wrong-password lock, for EVERY way of logging in.
+
+After LOGIN_MAX_ATTEMPTS wrong passwords for a username, logging in as that
+user is refused for LOGIN_LOCKOUT_MINUTES, even with the right password.
+
+It lives in the authentication backend (settings.AUTHENTICATION_BACKENDS),
+which Django uses for every login: the website (/api/auth/login/), the admin
+(/admin/) and the browsable API (/api-auth/login/). So no login page can be
+used to keep guessing.
+
+The count lives in Django's memory cache, so restarting Django also clears it.
+"""
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
+from django.core.cache import cache
+
+
+def failures_key(username):
+    return f'login-failures:{username.strip().lower()}'
+
+
+def too_many_failures(username):
+    return cache.get(failures_key(username), 0) >= settings.LOGIN_MAX_ATTEMPTS
+
+
+def record_failure(username):
+    """Count one wrong password. The count expires LOGIN_LOCKOUT_MINUTES after the last failure."""
+    key = failures_key(username)
+    cache.set(key, cache.get(key, 0) + 1, timeout=settings.LOGIN_LOCKOUT_MINUTES * 60)
+
+
+class LockoutBackend(ModelBackend):
+    """Django's normal username/password check, with the wrong-password lock around it."""
+
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        if username is None:
+            username = kwargs.get(get_user_model().USERNAME_FIELD)
+        if not username:
+            return None
+        if too_many_failures(username):
+            return None  # locked: the password is not even checked
+        user = super().authenticate(request, username=username, password=password, **kwargs)
+        if user is None:
+            record_failure(username)
+        else:
+            cache.delete(failures_key(username))
+        return user

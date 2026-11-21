@@ -17,7 +17,7 @@ from io import BytesIO
 from django.core.exceptions import ValidationError
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter; from .excel_safety import keep_as_text
 
 # (column heading, where the value comes from). The order must match the company sheet.
 COLUMNS = [
@@ -104,7 +104,7 @@ def build_workbook(report):
 def export_report_bytes(report):
     """The .xlsx file as bytes (used by the command now, and the website later)."""
     buffer = BytesIO()
-    build_workbook(report).save(buffer)
+    keep_as_text(build_workbook(report)).save(buffer)
     return buffer.getvalue()
 
 

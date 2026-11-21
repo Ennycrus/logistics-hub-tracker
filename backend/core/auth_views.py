@@ -16,13 +16,12 @@ expires and you must log in again.
 
 Wrong passwords: after LOGIN_MAX_ATTEMPTS failures for a username, logging in
 as that user is refused for LOGIN_LOCKOUT_MINUTES (even with the right password).
-The count lives in Django's memory cache, so restarting Django also clears it.
+The lock itself is in core/login_lock.py, so it also covers the admin login.
 """
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -30,6 +29,8 @@ from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from .login_lock import too_many_failures
 
 
 def user_data(user):
@@ -42,20 +43,6 @@ def user_data(user):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField()
-
-
-def failures_key(username):
-    return f'login-failures:{username.strip().lower()}'
-
-
-def too_many_failures(username):
-    return cache.get(failures_key(username), 0) >= settings.LOGIN_MAX_ATTEMPTS
-
-
-def record_failure(username):
-    """Count one wrong password. The count expires LOGIN_LOCKOUT_MINUTES after the last failure."""
-    key = failures_key(username)
-    cache.set(key, cache.get(key, 0) + 1, timeout=settings.LOGIN_LOCKOUT_MINUTES * 60)
 
 
 def locked_response():
@@ -100,16 +87,14 @@ class LoginView(APIView):
         if too_many_failures(username):
             return locked_response()
 
-        user = authenticate(request, **serializer.validated_data)
+        user = authenticate(request, **serializer.validated_data)  # counts a wrong password itself
         if user is None:
-            record_failure(username)
             if too_many_failures(username):
                 return locked_response()
             return Response(
                 {'error': 'Wrong username or password.', 'details': {}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        cache.delete(failures_key(username))
         login(request, user)
         return Response(user_data(user))
 

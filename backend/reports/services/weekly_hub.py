@@ -52,7 +52,7 @@ from shipments.models import (
 from shipments.services.excel_reader import OPEN_CATEGORIES
 
 from ..models import DailyHubLog, DailyHubLogChange, WeeklyHubReport
-from .report_service import current_report
+from .excel_safety import keep_as_text; from .report_service import current_report
 from .weekly import DELIVERY_DAYS, week_start, weekly_summary
 
 STALE_DAYS = 7  # warn about shipments with no status change for this many days
@@ -469,7 +469,7 @@ def weekly_hub_workbook_bytes(report):
     sheet.column_dimensions['C'].width = 60
 
     buffer = BytesIO()
-    workbook.save(buffer)
+    keep_as_text(workbook).save(buffer)
     return buffer.getvalue()
 
 

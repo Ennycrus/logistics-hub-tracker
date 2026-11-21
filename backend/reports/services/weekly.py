@@ -28,7 +28,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from shipments.models import TYPE_TEMU
 
-from .report_service import current_report
+from .excel_safety import keep_as_text; from .report_service import current_report
 
 DELIVERY_DAYS = 6  # Monday to Saturday
 
@@ -163,7 +163,7 @@ def weekly_workbook_bytes(summary, hub_name=''):
         sheet.column_dimensions[col].width = width
 
     buffer = BytesIO()
-    workbook.save(buffer)
+    keep_as_text(workbook).save(buffer)
     return buffer.getvalue()
 
 

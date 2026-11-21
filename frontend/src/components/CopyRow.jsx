@@ -17,7 +17,7 @@ import { useState } from 'react'
 // Tabs or line breaks inside a value would push the rest into the wrong cells.
 function clean(value) {
   if (value === null || value === undefined) return ''
-  return String(value).replace(/[\t\r\n]+/g, ' ').trim()
+  const text = String(value).replace(/[\t\r\n]+/g, ' ').trim(); return /^[=+\-@]/.test(text) && isNaN(Number(text)) ? `'${text}` : text // a leading ' keeps text like "=..." from becoming a formula in Google Sheets
 }
 
 // Clipboard helper with a fallback for browsers that block the modern API.
