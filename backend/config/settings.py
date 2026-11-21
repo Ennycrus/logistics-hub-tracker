@@ -146,7 +146,7 @@ CSRF_TRUSTED_ORIGINS = [
 # The website reads this number from /api/auth/me/ and logs out at the same time.
 IDLE_TIMEOUT_MINUTES = 15
 SESSION_COOKIE_AGE = IDLE_TIMEOUT_MINUTES * 60
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_SAVE_EVERY_REQUEST = True; SESSION_COOKIE_SAMESITE = 'Strict'; CSRF_COOKIE_SAMESITE = 'Strict'  # other websites can't use your login, even through a link
 
 # Wrong passwords: after this many failed logins for one username, login is
 # locked for that username for LOGIN_LOCKOUT_MINUTES. A correct login resets it.

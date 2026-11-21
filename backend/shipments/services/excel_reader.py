@@ -18,6 +18,9 @@ Nothing is skipped silently:
   - Cells that hold a formula with no saved result (they look empty to the
     app) are counted and reported.
 
+Sheets far bigger than a scanner file are refused quickly (see MAX_SHEET_ROWS),
+so a file that unpacks to millions of empty rows can't keep the server busy.
+
 Nothing is saved to the database here. This file only answers:
   - Which column holds the waybill numbers?
   - What is in each row, and how should it be treated?
@@ -52,6 +55,12 @@ from ..models import Shipment
 from .shipment_types import detect_type
 
 MAX_ROWS = 5000
+
+# Safety limits on what is READ, counting empty rows and cells too. A small .xlsx
+# can unpack to millions of empty rows, which would keep the server busy for a
+# very long time. Real scanner files are far below these limits.
+MAX_SHEET_ROWS = 20000
+MAX_SHEET_CELLS = 1_000_000
 
 # Header words that suggest "this column holds waybill numbers".
 HEADER_KEYWORDS = ['waybill', 'way bill', 'tracking', 'awb', 'parcel', 'barcode', 'shipment']
@@ -128,6 +137,23 @@ def keep_row(rows, row_number, values):
         raise ValidationError(f'The file has more than {MAX_ROWS} rows.')
 
 
+def limited_rows(sheet):
+    """
+    The rows of a sheet as (row_number, values), refusing sheets that are far
+    bigger than a scanner file (instead of reading them for minutes).
+    """
+    cells = 0
+    for row_number, values in enumerate(sheet.iter_rows(values_only=True), start=1):
+        cells += len(values)
+        if row_number > MAX_SHEET_ROWS or cells > MAX_SHEET_CELLS:
+            raise ValidationError(
+                f'The sheet "{sheet.title}" is far larger than a scanner file '
+                f'(more than {MAX_SHEET_ROWS} rows or {MAX_SHEET_CELLS:,} cells, counting empty ones). '
+                'Check it is the right file, or copy the waybill column and paste it instead.'
+            )
+        yield row_number, values
+
+
 def read_text_rows(file, file_name):
     """A pasted list or a .csv/.txt file: one row per line."""
     data = file.read()
@@ -166,13 +192,13 @@ def read_rows(file, file_name=''):
             # and then the last rows would silently be skipped.
             sheet.reset_dimensions()
             rows = []
-            for row_number, values in enumerate(sheet.iter_rows(values_only=True), start=1):
+            for row_number, values in limited_rows(sheet):
                 keep_row(rows, row_number, values)
             other_sheets = [
                 ws.title for ws in workbook.worksheets
                 if ws.title != sheet.title and any(
                     any(v not in (None, '') for v in values)
-                    for values in ws.iter_rows(values_only=True)
+                    for _, values in limited_rows(ws)
                 )
             ]
         finally:
@@ -204,7 +230,7 @@ def count_formulas_without_value(file, rows):
         sheet.reset_dimensions()
         values = {number: row for number, row in rows}
         missing = 0
-        for row_number, cells in enumerate(sheet.iter_rows(values_only=True), start=1):
+        for row_number, cells in limited_rows(sheet):
             for index, cell in enumerate(cells):
                 if isinstance(cell, str) and cell.startswith('='):
                     saved = values.get(row_number, [])

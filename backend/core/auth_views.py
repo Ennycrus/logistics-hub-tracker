@@ -30,7 +30,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .login_lock import too_many_failures
+from .login_lock import record_failure, too_many_failures
 
 
 def user_data(user):
@@ -129,7 +129,10 @@ class ChangePasswordView(APIView):
         data = serializer.validated_data
         user = request.user
 
+        if too_many_failures(user.get_username()): return locked_response()  # same lock as the login pages
         if not user.check_password(data['current_password']):
+            record_failure(user.get_username())
+            if too_many_failures(user.get_username()): return locked_response()        if not user.check_password(data['current_password']):
             raise ValidationError({'current_password': ['Your current password is wrong.']})
         if data['new_password'] == data['current_password']:
             raise ValidationError({'new_password': ['Choose a password different from the current one.']})
