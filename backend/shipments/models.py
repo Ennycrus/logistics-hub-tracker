@@ -50,6 +50,11 @@ class Shipment(models.Model):
     # Rider, Captain or 3PL - only for delivered shipments; empty otherwise.
     delivered_by = models.CharField(max_length=10, choices=DELIVERED_BY_CHOICES, blank=True)
     notes = models.TextField(blank=True)
+    # When a shipment is sent back to the sender, its NEW (return) waybill, typed
+    # by the user. Empty until then. return_emailed_at is set once the return
+    # email listing it has been sent to the partner.
+    return_waybill = models.CharField(max_length=64, blank=True, default='')
+    return_emailed_at = models.DateTimeField(null=True, blank=True)
 
     # The date this waybill first entered the system (first scan import).
     first_seen_date = models.DateField()

@@ -210,3 +210,13 @@ export const stockCount = { pending: (type = '') => request(`/stock-count/pendin
       form: importForm(file, { column, all_columns: allColumns || undefined, shipment_type: type }),
     }),
 }
+
+
+// --- Returns (TEMU return-waybill email) -------------------------------------
+
+export const returns = {
+  // Shipments sent back to the sender that have a new waybill and aren't emailed yet.
+  pending: (type = 'temu') => request(`/returns/pending/${query({ type })}`),
+  // Stamp the given shipments as emailed, so they drop off the pending list.
+  markEmailed: (ids) => request('/returns/mark-emailed/', { method: 'POST', body: { shipment_ids: ids } }),
+}

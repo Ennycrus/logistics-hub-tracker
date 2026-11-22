@@ -22,7 +22,10 @@ class FailureReasonSerializer(serializers.ModelSerializer):
 class HubConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = HubConfig
-        fields = ['hub_name', 'reasons_format', 'tracking_url', 'updated_at']
+        fields = [
+            'hub_name', 'reasons_format', 'tracking_url',
+            'return_email_to', 'return_email_subject', 'updated_at',
+        ]
         read_only_fields = ['updated_at']
 
     def validate_hub_name(self, value):

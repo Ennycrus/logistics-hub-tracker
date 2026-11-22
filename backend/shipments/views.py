@@ -178,6 +178,7 @@ class ShipmentStatusChange(APIView):
             note=data['note'],
             effective_date=data.get('effective_date'),
             delivered_by=data['delivered_by'],
+            return_waybill=data['return_waybill'],
         )
 
         shipment.refresh_from_db()
@@ -237,6 +238,7 @@ class ShipmentBulkStatusChange(APIView):
             note=data['note'],
             effective_date=data.get('effective_date'),
             delivered_by=data['delivered_by'],
+            return_waybill=data['return_waybill'],
         )
 
         if result['failures']:

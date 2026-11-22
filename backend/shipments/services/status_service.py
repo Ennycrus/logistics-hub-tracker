@@ -93,6 +93,7 @@ def change_status(
     note='',
     effective_date=None,
     delivered_by='',
+    return_waybill='',
 ):
     """
     Change a shipment's current status and record the change in history.
@@ -134,11 +135,18 @@ def change_status(
     elif delivered_by and delivered_by not in dict(DELIVERED_BY_CHOICES):
         raise ValidationError({'delivered_by': 'Choose Rider, Captain or 3PL.'})
 
+    # The new (return) waybill is only kept when the shipment is leaving the hub
+    # (e.g. Initiated Return). It is set when given, and otherwise left as it was.
+    return_waybill = (return_waybill or '').strip()
+    set_return = new_status.category == StatusOption.CATEGORY_LEFT_HUB and return_waybill != ''
+    new_return_waybill = return_waybill if set_return else shipment.return_waybill
+
     nothing_changed = (
         shipment.status_id == new_status.pk
         and shipment.failure_reason_id == (failure_reason.pk if failure_reason else None)
         and shipment.reason_note == reason_note
         and shipment.delivered_by == delivered_by
+        and shipment.return_waybill == new_return_waybill
     )
 
     # A repeat failed delivery on a LATER day is a new attempt, not a no-op:
@@ -176,6 +184,7 @@ def change_status(
     shipment.failure_reason = failure_reason
     shipment.reason_note = reason_note
     shipment.delivered_by = delivered_by
+    shipment.return_waybill = new_return_waybill
     shipment.full_clean()  # raises ValidationError -> transaction rolls back
     shipment.save()
 
@@ -204,6 +213,7 @@ def bulk_change_status(
     note='',
     effective_date=None,
     delivered_by='',
+    return_waybill='',
 ):
     """
     Give many shipments the same new status, ALL OR NOTHING.
@@ -241,6 +251,7 @@ def bulk_change_status(
                     shipment, new_status,
                     failure_reason=failure_reason, reason_note=reason_note,
                     note=note, effective_date=effective_date, delivered_by=delivered_by,
+                    return_waybill=return_waybill,
                 ):
                     changed += 1
                 else:

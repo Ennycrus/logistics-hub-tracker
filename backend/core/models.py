@@ -18,6 +18,12 @@ class HubConfig(models.Model):
     # The company's tracking page, with {waybill} where the number goes, e.g.
     # https://example.com/track?waybill={waybill}. Empty = no Track buttons.
     tracking_url = models.CharField(max_length=500, blank=True, default='')
+    # Who the TEMU return-waybill email goes to (comma-separated), and its subject.
+    return_email_to = models.CharField(
+        max_length=500, blank=True,
+        default='ohalele.precious@giglogistics.com, ohiri.anselm@giglogistics.com, temu_support@giglogistics.com',
+    )
+    return_email_subject = models.CharField(max_length=200, blank=True, default='Temu RETURN WAYBILL DETAILS')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

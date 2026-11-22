@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import stock_count_api, views
+from . import returns_api, stock_count_api, views
 
 urlpatterns = [
     path('shipments/', views.ShipmentList.as_view(), name='shipment-list'),
@@ -14,5 +14,9 @@ urlpatterns = [
     path('imports/confirm/', views.ImportConfirm.as_view(), name='import-confirm'),
     path('imports/<int:pk>/', views.ImportBatchDetail.as_view(), name='import-detail'),
 
-    path('stock-count/', stock_count_api.StockCountView.as_view(), name='stock-count'), path('stock-count/pending/', stock_count_api.StockPendingList.as_view(), name='stock-count-pending'),
+    path('stock-count/', stock_count_api.StockCountView.as_view(), name='stock-count'),
+    path('stock-count/pending/', stock_count_api.StockPendingList.as_view(), name='stock-count-pending'),
+
+    path('returns/pending/', returns_api.ReturnsPending.as_view(), name='returns-pending'),
+    path('returns/mark-emailed/', returns_api.MarkReturnsEmailed.as_view(), name='returns-mark-emailed'),
 ]

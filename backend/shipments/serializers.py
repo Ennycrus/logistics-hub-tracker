@@ -27,12 +27,12 @@ class ShipmentSerializer(serializers.ModelSerializer):
     status_name = serializers.CharField(source='status.name')
     status_category = serializers.CharField(source='status.category')
     failure_reason_name = serializers.CharField(source='failure_reason.name', default=None)
-    # How many times this shipment has been Delivery Unsuccessful, whether that
-    # has reached the point where the hub should initiate a return, and the date
-    # of its most recent status change (see services/attempts.py).
+    # How many times this shipment has been Delivery Unsuccessful, and whether that
+    # has reached the point where the hub should initiate a return (see services/attempts.py).
     attempt_count = serializers.SerializerMethodField()
     ready_for_return = serializers.SerializerMethodField()
     last_update = serializers.SerializerMethodField()
+    return_emailed = serializers.SerializerMethodField()
 
     def get_attempt_count(self, obj):
         count = getattr(obj, 'attempt_count', None)  # set by with_attempt_count() on list/detail
@@ -40,6 +40,9 @@ class ShipmentSerializer(serializers.ModelSerializer):
 
     def get_ready_for_return(self, obj):
         return is_ready_for_return(self.get_attempt_count(obj), obj.status.category)
+
+    def get_return_emailed(self, obj):
+        return obj.return_emailed_at is not None
 
     def get_last_update(self, obj):
         # The date of the most recent status change (used to allow a repeat attempt
@@ -60,6 +63,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             'failure_reason', 'failure_reason_name', 'reason_note', 'delivered_by',
             'notes', 'first_seen_date', 'updated_at',
             'attempt_count', 'ready_for_return', 'last_update',
+            'return_waybill', 'return_emailed',
         ]
 
 
@@ -90,6 +94,8 @@ class StatusChangeSerializer(serializers.Serializer):
     )
     note = serializers.CharField(required=False, allow_blank=True, default='')
     effective_date = serializers.DateField(required=False)
+    # The new (return) waybill, when sending a shipment back to the sender.
+    return_waybill = serializers.CharField(required=False, allow_blank=True, default='', max_length=64)
     # True = "I know that day's report is already finalized, save anyway".
     allow_finalized_day = serializers.BooleanField(required=False, default=False)
 
