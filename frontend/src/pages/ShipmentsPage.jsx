@@ -17,12 +17,14 @@ const CATEGORY_FILTERS = [
   // Checks for the Saturday report (not status categories):
   { value: 'delivered_none', label: 'Delivered, nobody recorded' },
   { value: 'stale', label: 'Stuck: no update for 7+ days' },
+  { value: 'ready_return', label: 'Ready for return (3+ failed attempts)' },
 ]
 
 // What each filter asks Django for.
 function filterParams(filter) {
   if (filter === 'delivered_none') return { delivered_by: 'none' }
   if (filter === 'stale') return { stale_days: 7 }
+  if (filter === 'ready_return') return { ready_for_return: 1 }
   return { category: filter }
 }
 
@@ -257,6 +259,11 @@ export default function ShipmentsPage() {
                   {s.status_category === 'delivered' && (
                     <div className="muted small">
                       {s.delivered_by ? `by ${DELIVERED_BY_LABELS[s.delivered_by]}` : 'nobody recorded'}
+                    </div>
+                  )}
+                  {s.ready_for_return && (
+                    <div className="small" style={{ color: '#b45309', fontWeight: 600, marginTop: 4 }}>
+                      ⚠ {s.attempt_count} attempts — initiate return
                     </div>
                   )}
                 </td>
