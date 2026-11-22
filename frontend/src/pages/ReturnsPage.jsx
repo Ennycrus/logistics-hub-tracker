@@ -53,17 +53,20 @@ export default function ReturnsPage() {
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
   }
 
-  // Open Gmail's compose window in a new tab, with recipients, subject and body
-  // filled in. Works with Gmail in the browser (no desktop mail app needed).
+  // Open Gmail's compose window in a NEW tab, with recipients, subject and body
+  // filled in. The app itself stays open. If the browser blocks the pop-up, we
+  // leave the app alone and tell you to allow pop-ups (or use Copy email text).
   function openEmail() {
     if (selectedRows.length === 0) return
+    setError('')
     const to = encodeURIComponent(data.email_to || '')
     const su = encodeURIComponent(data.email_subject || 'Temu RETURN WAYBILL DETAILS')
     const body = encodeURIComponent(buildBody(selectedRows))
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${su}&body=${body}`
     const win = window.open(url, '_blank', 'noopener')
-    // If a pop-up blocker stops the new tab, fall back to the same tab.
-    if (!win) window.location.href = url
+    if (!win) {
+      setError('Your browser blocked the Gmail tab. Allow pop-ups for this site, or click "Copy email text" and paste it into Gmail.')
+    }
   }
 
   async function copyText() {
