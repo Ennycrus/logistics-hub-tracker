@@ -5,6 +5,10 @@ import ConfirmDialog from './ConfirmDialog'
 // Who delivered a shipment (for the Saturday report).
 const DELIVERED_BY = [['rider', 'Rider'], ['captain', 'Captain'], ['3pl', '3PL']]
 
+// After this many failed delivery attempts, remind the user to initiate a return.
+// Must match RETURN_AFTER_ATTEMPTS in the backend settings.py.
+const RETURN_AFTER_ATTEMPTS = 3
+
 // Today's date as YYYY-MM-DD in your own time zone.
 function today() {
   return new Date().toLocaleDateString('en-CA')
@@ -93,6 +97,15 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
     deliveredOnes.every((s) => String(s.status) === statusId && !s.delivered_by)
   const noteRequired = wasDelivered && !onlyAddingWho
 
+  // Reminder: a parcel with 3+ failed attempts that is still at the hub
+  // should be sent back. Counting the attempt being recorded right now.
+  const failedNow = needsReason && status?.category === 'outstanding'
+  const attemptsAfter = (bulk ? 0 : shipment.attempt_count || 0) + (failedNow ? 1 : 0)
+  const atHub = !bulk && ['unchecked', 'outstanding', 'returned'].includes(shipment.status_category)
+  const remindReturn = atHub && attemptsAfter >= RETURN_AFTER_ATTEMPTS
+  // An "Initiated Return" style status to offer as a one-click choice, if one exists.
+  const returnStatus = statuses.find((s) => s.category === 'left_hub' && /return/i.test(s.name))
+
   const dirty =
     statusId !== (start.status ? String(start.status) : '') ||
     reasonId !== (start.failure_reason ? String(start.failure_reason) : '') ||
@@ -177,6 +190,21 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
               Waybill <span className="mono">{shipment.waybill_number}</span> · currently{' '}
               <span className={`badge badge-${shipment.status_category}`}>{shipment.status_name}</span>
             </p>
+          )}
+
+          {remindReturn && (
+            <div className="notice" style={{ marginBottom: 16 }}>
+              <strong>Reminder:</strong> this shipment has {attemptsAfter} failed delivery attempt(s).
+              Hub policy is to initiate a return.
+              {returnStatus && statusId !== String(returnStatus.id) && (
+                <>
+                  {' '}
+                  <button type="button" className="link-button" onClick={() => setStatusId(String(returnStatus.id))}>
+                    Set to {returnStatus.name}
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           <label>

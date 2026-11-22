@@ -1,9 +1,11 @@
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import serializers
 
 from core.models import FailureReason, StatusOption
 
 from .models import DELIVERED_BY_CHOICES, ImportBatch, ImportRow, Shipment, StatusHistory
+from .services.attempts import failed_attempts, is_ready_for_return
 
 
 class StatusHistorySerializer(serializers.ModelSerializer):
@@ -25,6 +27,17 @@ class ShipmentSerializer(serializers.ModelSerializer):
     status_name = serializers.CharField(source='status.name')
     status_category = serializers.CharField(source='status.category')
     failure_reason_name = serializers.CharField(source='failure_reason.name', default=None)
+    # How many times this shipment has been Delivery Unsuccessful, and whether that
+    # has reached the point where the hub should initiate a return (see services/attempts.py).
+    attempt_count = serializers.SerializerMethodField()
+    ready_for_return = serializers.SerializerMethodField()
+
+    def get_attempt_count(self, obj):
+        count = getattr(obj, 'attempt_count', None)  # set by with_attempt_count() on list/detail
+        return failed_attempts(obj) if count is None else count
+
+    def get_ready_for_return(self, obj):
+        return is_ready_for_return(self.get_attempt_count(obj), obj.status.category)
 
     class Meta:
         model = Shipment
@@ -33,6 +46,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             'status', 'status_name', 'status_category',
             'failure_reason', 'failure_reason_name', 'reason_note', 'delivered_by',
             'notes', 'first_seen_date', 'updated_at',
+            'attempt_count', 'ready_for_return',
         ]
 
 

@@ -99,7 +99,8 @@ def change_status(
 
     - Reason fields are cleared automatically when the new status does not
       need a reason (e.g. switching from Unsuccessful to Delivered).
-    - If nothing actually changed, no history row is written.
+    - If nothing actually changed, no history row is written - EXCEPT a repeat
+      Delivery Unsuccessful on a later date, which is recorded as a new attempt.
     - Changing a shipment that is already DELIVERED needs a note explaining
       why (e.g. "Marked delivered by mistake"). The note is kept in history.
     - delivered_by ('rider', 'captain' or '3pl') records who delivered it.
@@ -139,15 +140,23 @@ def change_status(
         and shipment.reason_note == reason_note
         and shipment.delivered_by == delivered_by
     )
-    if nothing_changed:
+
+    # A repeat failed delivery on a LATER day is a new attempt, not a no-op:
+    # record it even though the current status is unchanged, so attempts add up.
+    last = shipment.history.order_by('-effective_date', '-changed_at', '-pk').first()
+    is_new_attempt = (
+        new_status.category == StatusOption.CATEGORY_OUTSTANDING
+        and new_status.requires_reason
+        and last is not None
+        and effective_date > last.effective_date
+    )
+    if nothing_changed and not is_new_attempt:
         return False
 
     # Only adding who delivered it: no note needed, and the delivery keeps its date.
     only_adding_who = is_only_adding_who(shipment, new_status, delivered_by)
-    if only_adding_who:
-        last = shipment.history.order_by('-effective_date', '-changed_at', '-pk').first()
-        if last:
-            effective_date = last.effective_date
+    if only_adding_who and last:
+        effective_date = last.effective_date
 
     if effective_date < shipment.first_seen_date:
         raise ValidationError({'effective_date': (

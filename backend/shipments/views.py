@@ -1,6 +1,7 @@
 import datetime
 from io import BytesIO
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import Max
 from django.shortcuts import get_object_or_404
@@ -17,6 +18,7 @@ from .serializers import (
     ImportConfirmSerializer, ImportUploadSerializer, NotesSerializer, ShipmentDetailSerializer,
     ShipmentSerializer, StatusChangeSerializer,
 )
+from .services.attempts import with_attempt_count
 from .services.excel_reader import OPEN_CATEGORIES, preview_scan_file
 from .services.import_service import confirm_import, find_previous_import, undo_import
 from .services.search import waybill_search
@@ -75,13 +77,16 @@ class ShipmentList(generics.ListAPIView):
                             (or rider | captain | 3pl)
         ?stale_days=7       not delivered yet and no status change for 7+ days
         ?hide_delivered=1   leave out delivered shipments
+        ?ready_for_return=1 still at hub with 3+ failed attempts (ready to initiate return)
         ?page=2             next 50 rows
     """
 
     serializer_class = ShipmentSerializer
 
     def get_queryset(self):
-        queryset = Shipment.objects.select_related('status', 'failure_reason').order_by('waybill_number')
+        queryset = with_attempt_count(
+            Shipment.objects.select_related('status', 'failure_reason').order_by('waybill_number')
+        )
         params = self.request.query_params
 
         search = waybill_search(params.get('search'))
@@ -95,6 +100,11 @@ class ShipmentList(generics.ListAPIView):
             queryset = queryset.filter(shipment_type=params['type'])
         if params.get('hide_delivered') == '1':
             queryset = queryset.exclude(status__category=StatusOption.CATEGORY_DELIVERED)
+        if params.get('ready_for_return') == '1':
+            queryset = queryset.filter(
+                attempt_count__gte=settings.RETURN_AFTER_ATTEMPTS,
+                status__category__in=OPEN_CATEGORIES,
+            )
 
         delivered_by = params.get('delivered_by')
         if delivered_by:
@@ -119,8 +129,10 @@ class ShipmentList(generics.ListAPIView):
 class ShipmentDetail(generics.RetrieveAPIView):
     """GET /api/shipments/<id>/ -> one shipment with its full status history."""
 
-    queryset = Shipment.objects.select_related('status', 'failure_reason').prefetch_related(
-        'history__old_status', 'history__new_status', 'history__failure_reason',
+    queryset = with_attempt_count(
+        Shipment.objects.select_related('status', 'failure_reason').prefetch_related(
+            'history__old_status', 'history__new_status', 'history__failure_reason',
+        )
     )
     serializer_class = ShipmentDetailSerializer
 

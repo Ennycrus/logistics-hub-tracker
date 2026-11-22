@@ -150,6 +150,10 @@ SESSION_SAVE_EVERY_REQUEST = True; SESSION_COOKIE_SAMESITE = 'Strict'; CSRF_COOK
 
 # Wrong passwords: after this many failed logins for one username, login is
 # locked for that username for LOGIN_LOCKOUT_MINUTES. A correct login resets it.
+# A shipment with this many failed delivery attempts ("Delivery Unsuccessful")
+# is flagged as ready to initiate a return. Change the number to adjust it.
+RETURN_AFTER_ATTEMPTS = 3
+
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_MINUTES = 5; AUTHENTICATION_BACKENDS = ['core.login_lock.LockoutBackend']  # the lock covers every login page
 
