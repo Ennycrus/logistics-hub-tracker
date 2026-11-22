@@ -6,9 +6,9 @@ import { returns } from '../api/client'
  * TEMU returns: shipments you've sent back to the sender that have a new
  * return waybill and haven't been emailed to the partner yet.
  *
- * Tick the ones to send, click "Open email" (it opens in your mail app, filled
- * in, for you to review and send), then "Mark as emailed" so they drop off.
- * Recipients and subject come from Settings. Nothing is emailed by the server.
+ * Tick the ones to send, click "Open in Gmail" (it opens a Gmail compose tab,
+ * filled in, for you to review and send), then "Mark as emailed" so they drop
+ * off. Recipients and subject come from Settings. Nothing is emailed by the server.
  */
 function buildBody(rows) {
   const lines = rows.map((r) => `${r.waybill_number}  \u2192  ${r.return_waybill}`).join('\n')
@@ -53,12 +53,17 @@ export default function ReturnsPage() {
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
   }
 
+  // Open Gmail's compose window in a new tab, with recipients, subject and body
+  // filled in. Works with Gmail in the browser (no desktop mail app needed).
   function openEmail() {
     if (selectedRows.length === 0) return
     const to = encodeURIComponent(data.email_to || '')
-    const subject = encodeURIComponent(data.email_subject || 'Temu RETURN WAYBILL DETAILS')
+    const su = encodeURIComponent(data.email_subject || 'Temu RETURN WAYBILL DETAILS')
     const body = encodeURIComponent(buildBody(selectedRows))
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${su}&body=${body}`
+    const win = window.open(url, '_blank', 'noopener')
+    // If a pop-up blocker stops the new tab, fall back to the same tab.
+    if (!win) window.location.href = url
   }
 
   async function copyText() {
@@ -146,7 +151,7 @@ export default function ReturnsPage() {
 
             <div className="actions" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
               <button onClick={openEmail} disabled={selectedRows.length === 0}>
-                Open email ({selectedRows.length})
+                Open in Gmail ({selectedRows.length})
               </button>
               <button className="secondary" onClick={copyText} disabled={selectedRows.length === 0}>
                 {copied ? 'Copied ✓' : 'Copy email text'}
