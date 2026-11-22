@@ -67,6 +67,7 @@ export default function ShipmentsPage() {
   const [statuses, setStatuses] = useState([])
   const [reasons, setReasons] = useState([])
   const [trackingUrl, setTrackingUrl] = useState('') // from Settings; empty = no Track buttons
+  const [returnAfter, setReturnAfter] = useState(3) // failed attempts before the return reminder
   const [editing, setEditing] = useState(null)     // the shipment being updated, or null
   const [selectedIds, setSelectedIds] = useState([]) // ticked rows (this page only)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -82,6 +83,7 @@ export default function ShipmentsPage() {
         setStatuses(s)
         setReasons(r)
         setTrackingUrl(hub.tracking_url)
+        if (hub.return_after_attempts) setReturnAfter(hub.return_after_attempts)
       })
       .catch((err) => setError(err.message))
   }, [])
@@ -312,6 +314,7 @@ export default function ShipmentsPage() {
           shipment={editing}
           statuses={statuses}
           reasons={reasons}
+          returnAfter={returnAfter}
           onSaved={handleSaved}
           onClose={() => setEditing(null)}
         />

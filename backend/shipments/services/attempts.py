@@ -1,4 +1,4 @@
-"""attempts.py
+"""
 Failed delivery attempts, and the "ready to initiate return" reminder.
 
 A failed attempt = one "Delivery Unsuccessful" entry in a shipment's history
@@ -34,8 +34,9 @@ def failed_attempts(shipment):
 
 def with_attempt_count(queryset):
     """
-    Add an `attempt_count` to each shipment in the queryset, counted with a
-    subquery so it stays correct even next to other history aggregates.
+    Add `attempt_count` (failed attempts) and `last_update` (the date of the
+    most recent status change) to each shipment, using subqueries so they stay
+    correct even next to other history aggregates.
     """
     failed = (
         StatusHistory.objects
@@ -48,8 +49,15 @@ def with_attempt_count(queryset):
         .annotate(n=Count('*'))
         .values('n')
     )
+    latest = (
+        StatusHistory.objects
+        .filter(shipment=OuterRef('pk'))
+        .order_by('-effective_date', '-changed_at', '-pk')
+        .values('effective_date')[:1]
+    )
     return queryset.annotate(
         attempt_count=Coalesce(Subquery(failed, output_field=IntegerField()), 0),
+        last_update=Subquery(latest),  # the date of the shipment's most recent status change
     )
 
 

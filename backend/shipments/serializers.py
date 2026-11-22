@@ -27,10 +27,12 @@ class ShipmentSerializer(serializers.ModelSerializer):
     status_name = serializers.CharField(source='status.name')
     status_category = serializers.CharField(source='status.category')
     failure_reason_name = serializers.CharField(source='failure_reason.name', default=None)
-    # How many times this shipment has been Delivery Unsuccessful, and whether that
-    # has reached the point where the hub should initiate a return (see services/attempts.py).
+    # How many times this shipment has been Delivery Unsuccessful, whether that
+    # has reached the point where the hub should initiate a return, and the date
+    # of its most recent status change (see services/attempts.py).
     attempt_count = serializers.SerializerMethodField()
     ready_for_return = serializers.SerializerMethodField()
+    last_update = serializers.SerializerMethodField()
 
     def get_attempt_count(self, obj):
         count = getattr(obj, 'attempt_count', None)  # set by with_attempt_count() on list/detail
@@ -39,6 +41,17 @@ class ShipmentSerializer(serializers.ModelSerializer):
     def get_ready_for_return(self, obj):
         return is_ready_for_return(self.get_attempt_count(obj), obj.status.category)
 
+    def get_last_update(self, obj):
+        # The date of the most recent status change (used to allow a repeat attempt
+        # only on a later day). Annotated on list/detail; computed otherwise.
+        value = getattr(obj, 'last_update', None)
+        if value is None:
+            value = (
+                obj.history.order_by('-effective_date', '-changed_at', '-pk')
+                .values_list('effective_date', flat=True).first()
+            )
+        return value.isoformat() if value else None
+
     class Meta:
         model = Shipment
         fields = [
@@ -46,7 +59,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             'status', 'status_name', 'status_category',
             'failure_reason', 'failure_reason_name', 'reason_note', 'delivered_by',
             'notes', 'first_seen_date', 'updated_at',
-            'attempt_count', 'ready_for_return',
+            'attempt_count', 'ready_for_return', 'last_update',
         ]
 
 

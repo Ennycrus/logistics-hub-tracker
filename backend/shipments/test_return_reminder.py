@@ -84,3 +84,31 @@ class ReturnReminderTests(TestCase):
         # The serialized shipment here is NOT annotated, so the count is computed from history.
         self.assertEqual(resp['shipment']['attempt_count'], 3)
         self.assertFalse(resp['shipment']['ready_for_return'])  # delivered now, so no reminder
+        
+
+    def test_last_update_is_the_latest_history_date(self):
+        fail(self.ship, datetime.date(2026, 11, 17))
+        fail(self.ship, datetime.date(2026, 11, 18))
+        self.assertEqual(self.row()['last_update'], '2026-11-18')
+
+    def test_a_repeat_unsuccessful_on_a_later_day_adds_an_attempt(self):
+        # Same status and reason, just a later date: must be recorded as a new attempt.
+        unsuccessful = StatusOption.objects.get(name='Delivery Unsuccessful')
+        reason = FailureReason.objects.first()
+        body = lambda day: {  # noqa: E731
+            'status': unsuccessful.pk, 'failure_reason': reason.pk, 'effective_date': day,
+        }
+        for day in ('2026-11-17', '2026-11-18', '2026-11-19'):
+            self.client.post(f'/api/shipments/{self.ship.pk}/status/', body(day), format='json')
+        row = self.row()
+        self.assertEqual(row['attempt_count'], 3)
+        self.assertTrue(row['ready_for_return'])
+        # Same date again changes nothing (no duplicate attempt).
+        resp = self.client.post(f'/api/shipments/{self.ship.pk}/status/', body('2026-11-19'),
+                                format='json').json()
+        self.assertFalse(resp['changed'])
+        self.assertEqual(self.row()['attempt_count'], 3)
+
+    def test_hub_settings_exposes_the_threshold(self):
+        data = self.client.get('/api/settings/hub/').json()
+        self.assertIn('return_after_attempts', data)

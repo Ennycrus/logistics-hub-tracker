@@ -5,9 +5,9 @@ import ConfirmDialog from './ConfirmDialog'
 // Who delivered a shipment (for the Saturday report).
 const DELIVERED_BY = [['rider', 'Rider'], ['captain', 'Captain'], ['3pl', '3PL']]
 
-// After this many failed delivery attempts, remind the user to initiate a return.
-// Must match RETURN_AFTER_ATTEMPTS in the backend settings.py.
-const RETURN_AFTER_ATTEMPTS = 3
+// Fallback threshold if the backend setting hasn't loaded yet; the real value
+// (RETURN_AFTER_ATTEMPTS in settings.py) arrives as the returnAfter prop.
+const DEFAULT_RETURN_AFTER = 3
 
 // Today's date as YYYY-MM-DD in your own time zone.
 function today() {
@@ -54,7 +54,7 @@ function dayLabel(value) {
  * If that day's report is already finalized, Django says so first and you
  * choose whether to save anyway.
  */
-export default function StatusEditor({ shipment, selected, statuses, reasons, onSaved, onClose }) {
+export default function StatusEditor({ shipment, selected, statuses, reasons, returnAfter = DEFAULT_RETURN_AFTER, onSaved, onClose }) {
   const bulk = Boolean(selected)
   // In bulk mode there is no single "current" status, so start with empty choices.
   const start = bulk ? { status: '', failure_reason: null, reason_note: '', delivered_by: '' } : shipment
@@ -97,21 +97,30 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, on
     deliveredOnes.every((s) => String(s.status) === statusId && !s.delivered_by)
   const noteRequired = wasDelivered && !onlyAddingWho
 
-  // Reminder: a parcel with 3+ failed attempts that is still at the hub
+  // Reminder: a parcel with enough failed attempts that is still at the hub
   // should be sent back. Counting the attempt being recorded right now.
   const failedNow = needsReason && status?.category === 'outstanding'
   const attemptsAfter = (bulk ? 0 : shipment.attempt_count || 0) + (failedNow ? 1 : 0)
   const atHub = !bulk && ['unchecked', 'outstanding', 'returned'].includes(shipment.status_category)
-  const remindReturn = atHub && attemptsAfter >= RETURN_AFTER_ATTEMPTS
+  // Don't nag when you are actually resolving it (delivering, or sending it back).
+  const leavingHub = status && !['unchecked', 'outstanding', 'returned'].includes(status.category)
+  const remindReturn = atHub && !leavingHub && attemptsAfter >= returnAfter
   // An "Initiated Return" style status to offer as a one-click choice, if one exists.
   const returnStatus = statuses.find((s) => s.category === 'left_hub' && /return/i.test(s.name))
+
+  // A repeat of the SAME failed status on a LATER day is a genuine new attempt,
+  // so allow saving it even though nothing else changed (otherwise Save stays greyed out).
+  const repeatAttempt =
+    !bulk && failedNow && String(shipment.status) === statusId &&
+    Boolean(shipment.last_update) && date > shipment.last_update
 
   const dirty =
     statusId !== (start.status ? String(start.status) : '') ||
     reasonId !== (start.failure_reason ? String(start.failure_reason) : '') ||
     reasonNote !== (start.reason_note || '') ||
     (isDelivered && deliveredBy !== (start.delivered_by || '')) ||
-    note !== ''
+    note !== '' ||
+    repeatAttempt
 
   // Ask before throwing away changes you haven't saved.
   function close() {

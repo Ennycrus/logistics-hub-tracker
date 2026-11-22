@@ -5,6 +5,7 @@ Nothing here can be deleted. Statuses and reasons are switched off instead,
 so old shipments and history keep pointing at something real.
 """
 
+from django.conf import settings
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,7 +22,9 @@ class HubSettings(APIView):
     """
 
     def get(self, request):
-        return Response(HubConfigSerializer(HubConfig.get()).data)
+        data = HubConfigSerializer(HubConfig.get()).data
+        data['return_after_attempts'] = settings.RETURN_AFTER_ATTEMPTS  # one source of truth for the frontend
+        return Response(data)
 
     def patch(self, request):
         serializer = HubConfigSerializer(HubConfig.get(), data=request.data, partial=True)
