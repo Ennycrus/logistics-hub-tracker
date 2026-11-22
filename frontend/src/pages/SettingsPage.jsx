@@ -148,6 +148,8 @@ function HubSection() {
   const dirty = form.hub_name !== saved.hub_name
     || form.reasons_format !== saved.reasons_format
     || form.tracking_url !== saved.tracking_url
+    || form.return_email_to !== saved.return_email_to
+    || form.return_email_subject !== saved.return_email_subject
 
   async function save(event) {
     event.preventDefault()
@@ -160,6 +162,8 @@ function HubSection() {
         hub_name: form.hub_name,
         reasons_format: form.reasons_format,
         tracking_url: form.tracking_url,
+        return_email_to: form.return_email_to,
+        return_email_subject: form.return_email_subject,
       })
       setSaved(data)
       setForm(data)
@@ -200,6 +204,26 @@ function HubSection() {
       <p className="muted small">
         Open one waybill's result on the company tracking page, copy the address, and replace the
         waybill number with <code>{'{waybill}'}</code>. Leave empty to hide the Track buttons.
+      </p>
+      <h3>TEMU return email</h3>
+      <label>
+        Recipients (comma-separated)
+        <input
+          value={form.return_email_to || ''}
+          onChange={(e) => setForm({ ...form, return_email_to: e.target.value })}
+          placeholder="name@giglogistics.com, other@giglogistics.com"
+        />
+      </label>
+      <label>
+        Subject line
+        <input
+          value={form.return_email_subject || ''}
+          onChange={(e) => setForm({ ...form, return_email_subject: e.target.value })}
+          placeholder="Temu RETURN WAYBILL DETAILS"
+        />
+      </label>
+      <p className="muted small">
+        Used by the <strong>TEMU Returns</strong> page when it opens the return-waybill email.
       </p>
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}

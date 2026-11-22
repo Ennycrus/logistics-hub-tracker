@@ -42,17 +42,6 @@ function dayLabel(value) {
 /*
  * A pop-up panel for changing the status of ONE shipment, or of SEVERAL
  * selected shipments at once (pass `selected`, a list of shipments).
- *
- * Shows only the fields that matter:
- *   - Reason          when the chosen status needs one (e.g. Delivery Unsuccessful)
- *   - Explanation     when the reason is "Other"
- *   - Delivered by    when the status is Delivered (Rider, Captain or 3PL)
- *   - Reason for change (required) when the shipment is already Delivered (rule C),
- *     except when you are only filling in who delivered it (nobody recorded yet)
- *
- * Django still checks every rule; any error it sends back is shown here.
- * If that day's report is already finalized, Django says so first and you
- * choose whether to save anyway.
  */
 export default function StatusEditor({ shipment, selected, statuses, reasons, returnAfter = DEFAULT_RETURN_AFTER, onSaved, onClose }) {
   const bulk = Boolean(selected)
@@ -63,6 +52,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, re
   const [reasonId, setReasonId] = useState(start.failure_reason ? String(start.failure_reason) : '')
   const [reasonNote, setReasonNote] = useState(start.reason_note || '')
   const [deliveredBy, setDeliveredBy] = useState(start.delivered_by || '')
+  const [returnWaybill, setReturnWaybill] = useState(start.return_waybill || '')
   const [note, setNote] = useState('')
   const [date, setDateState] = useState(rememberedDate)
   function setDate(value) {
@@ -82,6 +72,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, re
   const needsReason = Boolean(status?.requires_reason)
   const needsReasonNote = needsReason && Boolean(reason?.is_other)
   const isDelivered = status?.category === 'delivered'
+  const isLeftHub = status?.category === 'left_hub'  // e.g. Initiated Return: wants a new waybill
   const deliveredCount = bulk
     ? selected.filter((s) => s.status_category === 'delivered').length
     : shipment.status_category === 'delivered' ? 1 : 0
@@ -119,6 +110,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, re
     reasonId !== (start.failure_reason ? String(start.failure_reason) : '') ||
     reasonNote !== (start.reason_note || '') ||
     (isDelivered && deliveredBy !== (start.delivered_by || '')) ||
+    (isLeftHub && returnWaybill !== (start.return_waybill || '')) ||
     note !== '' ||
     repeatAttempt
 
@@ -159,6 +151,7 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, re
       failure_reason: needsReason && reasonId ? Number(reasonId) : null,
       reason_note: needsReasonNote ? reasonNote : '',
       delivered_by: isDelivered ? deliveredBy : '',
+      return_waybill: isLeftHub ? returnWaybill.trim() : '',
       note,
       effective_date: date,
       allow_finalized_day: allowFinalizedDay,
@@ -264,6 +257,18 @@ export default function StatusEditor({ shipment, selected, statuses, reasons, re
               Explain "Other"
               <input value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} required />
               {fieldError('reason_note') && <span className="field-error">{fieldError('reason_note')}</span>}
+            </label>
+          )}
+
+          {isLeftHub && (
+            <label>
+              New return waybill (optional)
+              <input
+                value={returnWaybill}
+                onChange={(e) => setReturnWaybill(e.target.value)}
+                placeholder="e.g. 1599000032"
+              />
+              <span className="muted small">The new waybill for the return. It goes in the TEMU return email.</span>
             </label>
           )}
 
