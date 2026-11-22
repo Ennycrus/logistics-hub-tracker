@@ -94,6 +94,7 @@ def change_status(
     effective_date=None,
     delivered_by='',
     return_waybill='',
+    allow_clear_return=False,
 ):
     """
     Change a shipment's current status and record the change in history.
@@ -138,8 +139,11 @@ def change_status(
     # The new (return) waybill is only kept when the shipment is leaving the hub
     # (e.g. Initiated Return). It is set when given, and otherwise left as it was.
     return_waybill = (return_waybill or '').strip()
-    set_return = new_status.category == StatusOption.CATEGORY_LEFT_HUB and return_waybill != ''
-    new_return_waybill = return_waybill if set_return else shipment.return_waybill
+    is_left_hub = new_status.category == StatusOption.CATEGORY_LEFT_HUB
+    if is_left_hub and (return_waybill != '' or allow_clear_return):
+        new_return_waybill = return_waybill  # set, or clear when the caller allows it
+    else:
+        new_return_waybill = shipment.return_waybill  # keep the existing one
 
     nothing_changed = (
         shipment.status_id == new_status.pk

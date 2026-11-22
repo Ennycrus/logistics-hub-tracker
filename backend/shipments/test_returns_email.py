@@ -81,3 +81,33 @@ class ReturnsEmailTests(TestCase):
 
     def test_bad_type_is_refused(self):
         self.assertEqual(self.client.get('/api/returns/pending/?type=boxes').status_code, 400)
+
+    def test_missing_waybill_returns_are_surfaced(self):
+        # A return with no new waybill yet should NOT be emailable, but it must
+        # still be visible so it isn't silently forgotten.
+        ship = create_shipment('303400000002', first_seen_date=MON)
+        change_status(ship, self.returned, effective_date=MON, note='3 attempts')
+        data = self.pending()
+        self.assertEqual(data['count'], 0)
+        self.assertEqual(data['missing_count'], 1)
+        self.assertEqual(data['missing'][0]['waybill_number'], '303400000002')
+
+    def test_waybill_can_be_cleared_through_the_status_endpoint(self):
+        ship = self.initiate_return('303400000003', '1599000099')
+        resp = self.client.post(f'/api/shipments/{ship.pk}/status/', {
+            'status': self.returned.pk, 'effective_date': '2026-11-17',
+            'note': 'wrong waybill, clearing', 'return_waybill': '',
+        }, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['shipment']['return_waybill'], '')
+        self.assertEqual(self.pending()['count'], 0)
+
+    def test_bulk_update_does_not_mass_clear_waybills(self):
+        from .services.status_service import bulk_change_status
+        a = self.initiate_return('303400000004', '1599000100')
+        b = self.initiate_return('303400000005', '1599000101')
+        bulk_change_status([a.pk, b.pk], self.returned, effective_date=MON,
+                           note='bulk touch', return_waybill='')
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.return_waybill, '1599000100')
+        self.assertEqual(b.return_waybill, '1599000101')

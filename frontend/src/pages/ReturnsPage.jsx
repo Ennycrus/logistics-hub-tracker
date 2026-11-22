@@ -23,7 +23,7 @@ function buildBody(rows) {
 }
 
 export default function ReturnsPage() {
-  const [data, setData] = useState({ count: 0, results: [], email_to: '', email_subject: '' })
+  const [data, setData] = useState({ count: 0, results: [], missing_count: 0, missing: [], email_to: '', email_subject: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -63,6 +63,12 @@ export default function ReturnsPage() {
     const su = encodeURIComponent(data.email_subject || 'Temu RETURN WAYBILL DETAILS')
     const body = encodeURIComponent(buildBody(selectedRows))
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${su}&body=${body}`
+    // A Gmail compose link can only carry so much. For a big batch the body would
+    // be cut off, so send them to Copy email text instead of a truncated email.
+    if (url.length > 7000) {
+      setError('Too many returns for one Gmail link \u2014 click "Copy email text" and paste it into Gmail so nothing is cut off.')
+      return
+    }
     const win = window.open(url, '_blank', 'noopener')
     if (!win) {
       setError('Your browser blocked the Gmail tab. Allow pop-ups for this site, or click "Copy email text" and paste it into Gmail.')
@@ -103,6 +109,14 @@ export default function ReturnsPage() {
 
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
+
+        {data.missing_count > 0 && (
+          <div className="notice" style={{ marginBottom: 16 }}>
+            <strong>{data.missing_count} return(s) still need a new waybill</strong> before they can be emailed.
+            Add it on the <Link to="/shipments">Shipments</Link> page:{' '}
+            <span className="mono">{data.missing.map((m) => m.waybill_number).join(', ')}</span>
+          </div>
+        )}
 
         {!loading && data.count === 0 && <p className="muted">No TEMU returns waiting to be emailed.</p>}
 

@@ -44,6 +44,23 @@ def pending_returns(shipment_type):
     return queryset
 
 
+def missing_waybill_returns(shipment_type):
+    """Left-the-hub shipments still waiting for a return waybill, so they can't be emailed yet."""
+    queryset = (
+        Shipment.objects
+        .filter(
+            status__category=StatusOption.CATEGORY_LEFT_HUB,
+            return_emailed_at__isnull=True,
+            return_waybill='',
+        )
+        .select_related('status')
+        .order_by('first_seen_date', 'waybill_number')
+    )
+    if shipment_type:
+        queryset = queryset.filter(shipment_type=shipment_type)
+    return queryset
+
+
 class ReturnsPending(APIView):
     def get(self, request):
         shipment_type = request.query_params.get('type', TYPE_TEMU)
@@ -60,10 +77,21 @@ class ReturnsPending(APIView):
             }
             for s in pending_returns(shipment_type)
         ]
+        missing = [
+            {
+                'id': s.pk,
+                'waybill_number': s.waybill_number,
+                'status_name': s.status.name,
+                'arrived': s.first_seen_date,
+            }
+            for s in missing_waybill_returns(shipment_type)
+        ]
         config = HubConfig.get()
         return Response({
             'count': len(rows),
             'results': rows,
+            'missing_count': len(missing),
+            'missing': missing,
             'email_to': config.return_email_to,
             'email_subject': config.return_email_subject,
         })

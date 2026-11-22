@@ -179,6 +179,7 @@ class ShipmentStatusChange(APIView):
             effective_date=data.get('effective_date'),
             delivered_by=data['delivered_by'],
             return_waybill=data['return_waybill'],
+            allow_clear_return=True,
         )
 
         shipment.refresh_from_db()
