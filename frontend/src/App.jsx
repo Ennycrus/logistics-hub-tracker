@@ -14,6 +14,7 @@ import ShipmentsPage from './pages/ShipmentsPage';
 import ReturnsPage from './pages/ReturnsPage';
 import StockCountPage from './pages/StockCountPage';
 import StockChecklistPage from './pages/StockChecklistPage'
+import TrendsPage from './pages/TrendsPage'
 import WeeklyPage from './pages/WeeklyPage'
 
 // Anything you do on the page counts as activity and restarts the idle clock.
@@ -126,6 +127,7 @@ export default function App() {
           <Route path="/stock-count/checklist" element={<StockChecklistPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/weekly" element={<WeeklyPage />} />
+          <Route path="/trends" element={<TrendsPage />} />
           <Route path="/hub-report" element={<HubReportPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />

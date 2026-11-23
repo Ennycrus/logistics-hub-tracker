@@ -168,6 +168,9 @@ export const reports = {
     `/api/reports/${date}/download/${query({ type, version })}`,
   // The Monday-Saturday week containing `date`, from finalized reports.
   weekly: (date, type = 'temu') => request(`/reports/weekly/${query({ date, type })}`),
+  // Weekly delivered/failed counts and top failure reasons, from status history.
+  trends: (type = 'temu', weeks = 8, reason_days = 30) =>
+    request(`/reports/trends/${query({ type, weeks, reason_days })}`),
   weeklyDownloadUrl: (date, type = 'temu') => `/api/reports/weekly/download/${query({ date, type })}`,
   // The Saturday report for the manager (both types together).
   // Leave version out for the latest saved version.
