@@ -152,6 +152,7 @@ Run these in `backend` with the venv active.
 | --- | --- |
 | `python manage.py backup_db` | Safe copy of the database into `backend/backups/` (keeps the newest 30), plus a second copy in `BACKUP_COPY_DIR` if it is set in `.env` |
 | `python manage.py check_backup` | Opens the newest backup read-only, checks it is healthy and compares its counts with the app (`--dir` for another folder, or give a file) |
+| `python manage.py restore_db` | Restores a backup (the newest by default, or give a file). Saves the current database to `backups/pre_restore_...` first, so a restore can itself be undone. Stop Django before running it; `--yes` skips the confirmation |
 | `python manage.py reset_data` | Deletes all shipments, imports, reports, fuel logs and Saturday reports after a backup; keeps users and settings |
 | `python manage.py test` | Runs the test suite (363 tests, under a minute) |
 
@@ -198,3 +199,11 @@ All endpoints need a logged-in user. Report endpoints take `?type=temu` or `?typ
 ## License
 
 All rights reserved - see [LICENSE](LICENSE). You may view the code, but not use, copy or sell it without permission.
+
+### If something goes wrong (restore a backup)
+
+1. Stop Django (Ctrl+C in the backend window).
+2. In `backend` with the venv active, run `python manage.py restore_db` to put back the newest backup, or `python manage.py restore_db "path\to\hub_....sqlite3"` for a specific one. Your current database is saved to `backups\pre_restore_...` first, so this step can itself be undone.
+3. Start Django again (`python manage.py runserver`).
+
+To check a backup before restoring, run `python manage.py check_backup`.
