@@ -119,12 +119,19 @@ export default function ShipmentsPage() {
     }
   }, [search, category, type, page, reloadKey, hideDelivered])
 
-  // Arrived from a quick lookup (?search=...&open=1): if exactly one shipment
-  // matches, open its status editor straight away, then drop the 'open' flag so
-  // closing the editor doesn't reopen it.
+  // Arrived from a quick lookup (?search=...&open=1): open the editor only for an
+  // EXACT waybill match, so a loose partial match never flings open the wrong
+  // parcel. If nothing matches at all, say so plainly. Then drop the 'open' flag
+  // so closing the editor doesn't reopen it.
   useEffect(() => {
     if (loading || searchParams.get('open') !== '1') return
-    if (data.results.length === 1 && !editing) setEditing(data.results[0])
+    const term = (searchParams.get('search') || '').trim()
+    const exact = data.results.find((s) => s.waybill_number === term)
+    if (exact && !editing) {
+      setEditing(exact)
+    } else if (data.results.length === 0) {
+      setMessage(`No shipment found for "${term}".`)
+    }
     const next = new URLSearchParams(searchParams)
     next.delete('open')
     setSearchParams(next, { replace: true })
