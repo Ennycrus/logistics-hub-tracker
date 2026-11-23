@@ -52,7 +52,7 @@ export default function ShipmentsPage() {
   function setCategory(value) {
     setSearchParams(value ? { filter: value } : {})
   }
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.get('search') || '')
   const [type, setType] = useState('') // '' = TEMU and Base
   const [showDelivered, setShowDelivered] = useState(false)
   // Hide delivered unless you asked for them: the box, a delivered filter, or a search.
@@ -118,6 +118,17 @@ export default function ShipmentsPage() {
       clearTimeout(timer)
     }
   }, [search, category, type, page, reloadKey, hideDelivered])
+
+  // Arrived from a quick lookup (?search=...&open=1): if exactly one shipment
+  // matches, open its status editor straight away, then drop the 'open' flag so
+  // closing the editor doesn't reopen it.
+  useEffect(() => {
+    if (loading || searchParams.get('open') !== '1') return
+    if (data.results.length === 1 && !editing) setEditing(data.results[0])
+    const next = new URLSearchParams(searchParams)
+    next.delete('open')
+    setSearchParams(next, { replace: true })
+  }, [loading, data, editing, searchParams, setSearchParams])
 
   function handleBulkSaved(result) {
     setBulkOpen(false)

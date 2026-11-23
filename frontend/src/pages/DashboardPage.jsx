@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { imports, reports, returns, shipments } from '../api/client'
 import TypeSwitch, { typeLabel, useShipmentType } from '../components/TypeSwitch'
 
@@ -48,6 +48,34 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
   }, [date, type])
 
+  const navigate = useNavigate()
+  const [lookup, setLookup] = useState('')
+  function doLookup(e) {
+    e.preventDefault()
+    const wb = lookup.trim()
+    if (!wb) return
+    navigate(`/shipments?search=${encodeURIComponent(wb)}&open=1`)
+  }
+
+  // Type or scan one waybill and jump straight to it (its editor if it's the only match).
+  const lookupCard = (
+    <div className="card">
+      <h3>Quick lookup</h3>
+      <form onSubmit={doLookup} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input
+          type="search"
+          value={lookup}
+          onChange={(e) => setLookup(e.target.value)}
+          placeholder="Scan or type a waybill number"
+          style={{ flex: 1, minWidth: 220 }}
+          autoFocus
+        />
+        <button type="submit" disabled={!lookup.trim()}>Find</button>
+      </form>
+      <p className="muted small">Opens the shipment's status editor when there's a single match, otherwise shows the search results.</p>
+    </div>
+  )
+
   // The switch stays visible while loading, so you can always change type.
   const header = (
     <div className="card">
@@ -59,7 +87,7 @@ export default function DashboardPage() {
       {error && <p className="error">{error}</p>}
     </div>
   )
-  if (loading || error || !report) return header
+  if (loading || error || !report) return <>{lookupCard}{header}</>
 
   const finalized = report.state === 'finalized'
   // A finalized day shows its frozen figures; an open day shows live ones.
@@ -80,6 +108,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      {lookupCard}
       <div className="card">
         <div className="title-row">
           <div>
