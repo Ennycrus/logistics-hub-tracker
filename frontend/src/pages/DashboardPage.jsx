@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { imports, reports } from '../api/client'
+import { imports, reports, returns, shipments } from '../api/client'
 import TypeSwitch, { typeLabel, useShipmentType } from '../components/TypeSwitch'
 
 function today() {
@@ -18,17 +18,31 @@ export default function DashboardPage() {
   const [report, setReport] = useState(null)
   const [lastImport, setLastImport] = useState(null)
   const [week, setWeek] = useState(null) // this Monday-Saturday week, from finalized reports
+  const [attention, setAttention] = useState({ ready: 0, stale: 0, returnsToEmail: 0, returnsMissing: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setLoading(true)
     setError('')
-    Promise.all([reports.get(date, type), imports.list(), reports.weekly(date, type)])
-      .then(([r, i, w]) => {
+    Promise.all([
+      reports.get(date, type),
+      imports.list(),
+      reports.weekly(date, type),
+      shipments.list({ ready_for_return: 1, type }).catch(() => ({ count: 0 })),
+      shipments.list({ stale_days: 7, type }).catch(() => ({ count: 0 })),
+      returns.pending(type).catch(() => ({ count: 0, missing_count: 0 })),
+    ])
+      .then(([r, i, w, ready, stale, ret]) => {
         setReport(r)
         setLastImport(i.results[0] ?? null)
         setWeek(w)
+        setAttention({
+          ready: ready.count || 0,
+          stale: stale.count || 0,
+          returnsToEmail: ret.count || 0,
+          returnsMissing: ret.missing_count || 0,
+        })
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -131,6 +145,18 @@ export default function DashboardPage() {
           )}
           {!finalized && f.unchecked > 0 && (
             <li>🔍 {f.unchecked} shipment(s) still need checking on the company website. <Link to="/shipments">Update statuses →</Link></li>
+          )}
+          {attention.ready > 0 && (
+            <li>🔁 {attention.ready} {typeLabel(type)} shipment(s) have enough failed attempts to initiate a return. <Link to="/shipments">Review →</Link></li>
+          )}
+          {attention.returnsMissing > 0 && (
+            <li>📨 {attention.returnsMissing} {typeLabel(type)} return(s) still need a new waybill before they can be emailed. <Link to="/returns">Add waybill →</Link></li>
+          )}
+          {attention.returnsToEmail > 0 && (
+            <li>✉️ {attention.returnsToEmail} {typeLabel(type)} return(s) ready to email the partner. <Link to="/returns">Open TEMU Returns →</Link></li>
+          )}
+          {attention.stale > 0 && (
+            <li>⏰ {attention.stale} {typeLabel(type)} shipment(s) stuck at the hub for 7+ days with no update. <Link to="/shipments">Review →</Link></li>
           )}
           {warnings
             .filter((w) => w.code !== 'unchecked')
