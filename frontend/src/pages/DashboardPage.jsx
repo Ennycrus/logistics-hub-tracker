@@ -101,7 +101,7 @@ export default function DashboardPage() {
     { label: 'Total available', value: f.total_available },
     { label: 'Delivered', value: f.delivered },
     { label: 'Unsuccessful', value: f.unsuccessful },
-    { label: 'Returned to hub', value: f.return },
+    { label: 'Return (sent back)', value: f.return },
     { label: 'Remaining (Current Day)', value: f.current_day },
     { label: 'Not yet checked', value: f.unchecked },
   ]

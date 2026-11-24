@@ -155,7 +155,7 @@ function Details({ report }) {
       <p><strong>Reasons:</strong> {report.reasons_text || '—'}</p>
       <p>
         <strong>Also recorded:</strong> {report.figures.unsuccessful} unsuccessful,{' '}
-        {report.figures.unchecked} not yet checked, {report.figures.rerouted} rerouted
+        {report.figures.unchecked} not yet checked, {report.figures.rerouted ?? report.figures.return} sent back / left hub
       </p>
       {adjusted.length > 0 && (
         <p>
