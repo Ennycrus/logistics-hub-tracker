@@ -54,7 +54,7 @@ class Command(BaseCommand):
         r = result['reconciliation']
         check = 'balanced' if r['balanced'] else 'DOES NOT BALANCE'
         self.stdout.write(
-            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['left_hub']} = "            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['rerouted']} = "
+            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['left_hub']} = "
             f"{r['accounted_for']} vs Total Available {r['total_available']} -> {check}"
         )
 
