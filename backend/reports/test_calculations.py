@@ -63,28 +63,29 @@ class CalculationTests(TestCase):
         f = result['figures']
         self.assertEqual(f['total_available'], 6)
         self.assertEqual(f['delivered'], 2)
-        self.assertEqual(f['current_day'], 3)   # U1 + P1 + R1
-        self.assertEqual(f['return'], 2)        # U1 + R1, also inside Current Day
-        self.assertEqual(f['rerouted'], 1)
+        self.assertEqual(f['current_day'], 3)   # U1 + P1 + R1 (all still at the hub)
+        self.assertEqual(f['return'], 1)        # X1 left the hub (sent back to sender)
         self.assertEqual(f['unsuccessful'], 1)
         self.assertTrue(result['reconciliation']['balanced'])
         self.assertEqual(result['warnings'], [])
 
-    def test_return_counts_only_shipments_that_came_back_that_day(self):
-        old_fail = self.make('OLD', self.unsuccessful, self.unavailable, date=MON)
-        self.make('NEW', self.unsuccessful, self.unavailable, date=TUE)
-        back = self.make('BACK', self.pending, date=MON)
-        change_status(back, self.returned, effective_date=TUE)
-        f = self.summary(TUE)['figures']
-        self.assertEqual(f['return'], 2)          # NEW + BACK; OLD failed on Monday
-        self.assertEqual(f['current_day'], 3)     # all three are still at the hub
-        self.assertEqual(self.summary(MON)['figures']['return'], 1)  # OLD on its own day
+    def test_return_counts_shipments_sent_back_to_sender(self):
+        # Return = parcels that left the hub (sent back to sender / rerouted),
+        # counted as one bucket. Failed deliveries that are still at the hub are
+        # NOT returns - they stay in Current Day.
+        self.make('S1', self.rerouted, date=MON)                 # left the hub
+        self.make('U1', self.unsuccessful, self.unavailable, date=MON)  # failed, still at hub
+        self.make('P1', self.pending, date=MON)                  # waiting, still at hub
+        self.make('D1', self.delivered, date=MON)                # delivered
+        f = self.summary(MON)['figures']
+        self.assertEqual(f['return'], 1)          # only S1 left the hub
+        self.assertEqual(f['current_day'], 2)     # U1 + P1 still at the hub
+        self.assertEqual(f['delivered'], 1)
+        self.assertTrue(self.summary(MON)['reconciliation']['balanced'])
 
-        change_status(old_fail, self.unsuccessful, failure_reason=self.reschedule, effective_date=TUE)
-        self.assertEqual(self.summary(TUE)['figures']['return'], 3)  # tried again and failed today
-
-    def test_pending_delivery_is_not_a_return(self):
-        self.make('P1', self.pending)
+    def test_a_failed_or_pending_delivery_is_not_a_return(self):
+        self.make('U1', self.unsuccessful, self.unavailable)  # failed, still at hub
+        self.make('P1', self.pending)                         # waiting, still at hub
         self.assertEqual(self.summary(MON)['figures']['return'], 0)
 
     def test_returned_to_sender_leaves_the_hub(self):
@@ -95,7 +96,7 @@ class CalculationTests(TestCase):
         self.make('X1', self.rerouted)
         result = self.summary(MON)
         f = result['figures']
-        self.assertEqual((f['rerouted'], f['current_day'], f['return']), (2, 0, 0))
+        self.assertEqual((f['current_day'], f['return']), (0, 2))  # both left the hub
         self.assertTrue(result['reconciliation']['balanced'])
         self.assertEqual(self.summary(TUE)['figures']['old_pending'], 0)  # not carried forward
 
@@ -140,8 +141,8 @@ class CalculationTests(TestCase):
         self.make('C', self.unsuccessful, self.unavailable, date=TUE)
         tuesday = self.summary(TUE)
         self.assertEqual(tuesday['reasons_text'], 'Customer unavailable - 1')   # C only
-        self.assertEqual(tuesday['figures']['return'], 1)
-        self.assertEqual(tuesday['figures']['current_day'], 3)                 # A and B still counted here
+        self.assertEqual(tuesday['figures']['return'], 0)                      # nothing left the hub
+        self.assertEqual(tuesday['figures']['current_day'], 3)                 # A, B and C still at hub
         self.assertEqual(self.summary(MON)['reasons_text'],
                          'Customer unavailable - 1; Other (Wrong address) - 1')
 

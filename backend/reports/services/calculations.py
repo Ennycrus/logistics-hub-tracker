@@ -4,21 +4,19 @@ Calculations: the end-of-day figures for one reporting day.
 Confirmed rules:
   Total Available = Inbound + Old Pending
   Delivered       = shipments whose status at the end of the day is "delivered"
-  Current Day     = shipments still at the hub at the end of the day:
+  Current Day     = shipments still at the hub at the end of the day, i.e. the
+                    pending deliveries not concluded that day:
                     unchecked + outstanding (Pending, Unsuccessful) + returned
-  Return          = shipments that came back to the hub THAT DAY: marked
-                    "Delivery Unsuccessful" or "Returned to Hub" with that
-                    day's date. They are ALSO inside Current Day, because they
-                    will be attempted again (rule 4a). A shipment that failed
-                    on an earlier day and was not taken out again is not
-                    counted in Return again.
-  Reasons         = the failure reasons of that day's Return only, so the two
-                    always agree.
-  Rerouted        = left the hub (category "left_hub": Rerouted to Another Hub,
-                    Returned to Sender...); in neither Delivered nor Current Day.
+                    (came back to the hub, waiting to be tried again)
+  Return          = shipments being SENT BACK TO THE SENDER / that left the hub
+                    (category "left_hub": Initiated Return, Returned to Sender,
+                    Rerouted to Another Hub...). These are NOT in Delivered and
+                    NOT in Current Day - they have left the hub.
+  Reasons         = the failure reasons of that day's unsuccessful deliveries
+                    (still at the hub), so they explain the day's failed attempts.
 
 So every shipment of the day lands in exactly one of:
-  Delivered | Current Day | Rerouted
+  Delivered | Current Day | Return
 and those three must add up to Total Available. If they don't, a warning says why.
 
 This file only READS. Nothing is saved.
@@ -57,8 +55,8 @@ def reasons_summary(history_rows, date):
     """
     Group failure reasons, e.g. "Customer unavailable - 6; Other (Gate locked) - 1".
     Only shipments that failed ON `date` are counted, so the reasons always
-    explain that day's Return. Older failures still at the hub are left out
-    (they are in Old Pending and Current Day).
+    explain that day's failed deliveries. Older failures still at the hub are
+    left out (they are in Old Pending and Current Day).
     """
     counter = Counter()
     for row in history_rows:
@@ -87,15 +85,10 @@ def calculate_day(day):
 
     categories = Counter(row.new_status.category for row in latest.values())
     delivered = categories[C.CATEGORY_DELIVERED]
-    # Return: came back to the hub today (unsuccessful or returned, dated today).
-    returned = sum(
-        1 for row in latest.values()
-        if row.effective_date == day.date and (
-            row.new_status.category == C.CATEGORY_RETURNED
-            or (row.new_status.category == C.CATEGORY_OUTSTANDING and row.new_status.requires_reason)
-        )
-    )
-    rerouted = categories[C.CATEGORY_LEFT_HUB]
+    # Return: shipments sent back to the sender / that left the hub. Counted as
+    # one bucket (Initiated Return, Returned to Sender, Rerouted...). They are
+    # neither delivered nor still at the hub.
+    left_hub = categories[C.CATEGORY_LEFT_HUB]
     unchecked = categories[C.CATEGORY_UNCHECKED]
     current_day = sum(categories[c] for c in AT_HUB)
     unsuccessful = sum(
@@ -112,8 +105,7 @@ def calculate_day(day):
         'total_available': total_available,
         'delivered': delivered,
         'current_day': current_day,
-        'return': returned,
-        'rerouted': rerouted,
+        'return': left_hub,          # sent back to sender / left the hub
         'unsuccessful': unsuccessful,
         'unchecked': unchecked,
     }
@@ -133,12 +125,12 @@ def calculate_day(day):
                        f'counted anywhere: {shown}',
         })
 
-    accounted = delivered + current_day + rerouted
+    accounted = delivered + current_day + left_hub
     if accounted != total_available:
         warnings.append({
             'code': 'does_not_reconcile',
             'message': f'Delivered ({delivered}) + Current Day ({current_day}) + '
-                       f'Left hub ({rerouted}) = {accounted}, but Total Available is '
+                       f'Return ({left_hub}) = {accounted}, but Total Available is '
                        f'{total_available}. Difference: {total_available - accounted}.',
         })
 
@@ -158,7 +150,7 @@ def calculate_day(day):
         'reconciliation': {
             'delivered': delivered,
             'current_day': current_day,
-            'rerouted': rerouted,
+            'left_hub': left_hub,
             'accounted_for': accounted,
             'total_available': total_available,
             'balanced': accounted == total_available,

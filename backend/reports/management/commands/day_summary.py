@@ -46,8 +46,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Total Available:  {f['total_available']}")
         self.stdout.write(f"  Delivered:        {f['delivered']}")
         self.stdout.write(f"  Current Day:      {f['current_day']}")
-        self.stdout.write(f"  Return:           {f['return']}")
-        self.stdout.write(f"  (Rerouted:        {f['rerouted']})")
+        self.stdout.write(f"  Return:           {f['return']}  (sent back to sender / left hub)")
         self.stdout.write(f"  (Unsuccessful:    {f['unsuccessful']})")
         self.stdout.write(f"  (Not yet checked: {f['unchecked']})")
         self.stdout.write(f"  Reasons:          {result['reasons_text'] or '-'}")
@@ -55,7 +54,7 @@ class Command(BaseCommand):
         r = result['reconciliation']
         check = 'balanced' if r['balanced'] else 'DOES NOT BALANCE'
         self.stdout.write(
-            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['rerouted']} = "
+            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['left_hub']} = "            f"\n  Check: {r['delivered']} + {r['current_day']} + {r['rerouted']} = "
             f"{r['accounted_for']} vs Total Available {r['total_available']} -> {check}"
         )
 

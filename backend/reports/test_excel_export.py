@@ -36,11 +36,13 @@ class ExcelExportTests(TestCase):
 
         delivered = StatusOption.objects.get(name='Delivered Successfully')
         unsuccessful = StatusOption.objects.get(name='Delivery Unsuccessful')
+        rerouted = StatusOption.objects.get(name='Rerouted to Another Hub')
         unavailable = FailureReason.objects.get(name='Customer unavailable')
 
         change_status(create_shipment('D1', first_seen_date=MON), delivered, effective_date=MON)
         change_status(create_shipment('U1', first_seen_date=MON), unsuccessful,
                       failure_reason=unavailable, effective_date=MON)
+        change_status(create_shipment('R1', first_seen_date=MON), rerouted, effective_date=MON)
 
         draft = save_draft(get_or_create_draft(MON), vans=2, bikes=6, third_party=3)
         self.report = finalize(draft)
@@ -59,7 +61,7 @@ class ExcelExportTests(TestCase):
     def test_values_come_from_the_snapshot(self):
         sheet = self.open_sheet(self.report)
         self.assertEqual(self.row(sheet, DATA_ROW), [
-            'Example_Hub', 2, 0, 2, 1, 1, 1, 2, 6, 3, 'Customer unavailable - 1',  # U1 failed today: Return 1
+            'Example_Hub', 3, 0, 3, 1, 1, 1, 2, 6, 3, 'Customer unavailable - 1',  # R1 left the hub: Return 1            'Example_Hub', 2, 0, 2, 1, 1, 1, 2, 6, 3, 'Customer unavailable - 1',  # U1 failed today: Return 1
         ])
 
     def test_hub_and_date_are_shown(self):

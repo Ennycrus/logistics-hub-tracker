@@ -228,14 +228,13 @@ function DraftReport({ date, type, data, onChange, onFinalized }) {
         <ReportRow values={values} adjusted={report.adjustments} />
 
         <div className="stats">
-          <div className="stat"><span className="stat-value">{preview.figures.unsuccessful}</span><span className="stat-label">Unsuccessful</span></div>
+          <div className="stat"><span className="stat-value">{preview.figures.unsuccessful}</span><span className="stat-label">Unsuccessful (still at hub)</span></div>
           <div className="stat"><span className="stat-value">{preview.figures.unchecked}</span><span className="stat-label">Not yet checked</span></div>
-          <div className="stat"><span className="stat-value">{preview.figures.rerouted}</span><span className="stat-label">Left hub (rerouted / initiated return)</span></div>
         </div>
 
         <h3>Check (from shipment records, before adjustments)</h3>
         <p className={r.balanced ? 'success' : 'error'}>
-          Delivered {r.delivered} + Current Day {r.current_day} + Left hub {r.rerouted} = {r.accounted_for}
+          Delivered {r.delivered} + Current Day {r.current_day} + Return {r.left_hub} = {r.accounted_for}
           {' · '}Total Available {r.total_available}
           {' · '}{r.balanced ? 'Balanced ✓' : `Difference ${r.total_available - r.accounted_for}`}
         </p>

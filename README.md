@@ -23,7 +23,7 @@ Built with **Django REST Framework**, **React (Vite)**, **SQLite** and **openpyx
 - **Track button** - opens the shipment on the courier's public tracking page (the address is set in Settings).
 - **Bulk updates, all or nothing** - if one selected shipment breaks a rule, nothing is saved.
 - **Separate daily reports for TEMU and Base** - own figures, carry-forward, transport (vans, bikes, 3PL), reasons and finalize.
-- **Reconciliation check** - Delivered + Current Day + Left hub (rerouted / initiated return) must equal Total Available.
+- **Reconciliation check** - Delivered + Current Day + Return (sent back to sender / left the hub) must equal Total Available.
 - **Frozen reports** - a finalized report never changes. Corrections create a new version (v2, v3...) and keep the original.
 - **Weekly delivery (Monday to Saturday)** - delivered per day, daily rates, and the week's delivery rate for TEMU and Base, with an Excel download.
 - **Saturday hub report** - the manager's six items (TEMU pending, Base pending, delivered by riders/captains/3PLs, not in hub, fuel, incidents), ready to copy into WhatsApp or email and download as Excel. Fuel and incidents are entered each day on the Daily Report page, and every change to them is kept. Every save of the report is kept as a version.
@@ -44,11 +44,11 @@ Each report (TEMU or Base) only counts shipments of its own type.
 | Old Pending | Shipments first scanned earlier and still at the hub at the end of the previous day |
 | Total Available | Inbound + Old Pending |
 | Delivered | Delivered on this date |
-| Current Day | Still at the hub at the end of the day (not checked, outstanding or returned) |
-| Return | Delivery Unsuccessful or Returned to Hub recorded on this date (also counted inside Current Day) |
+| Current Day | Still at the hub at the end of the day - the pending deliveries not concluded (not checked, outstanding, or returned to the hub) |
+| Return | Shipments sent back to the sender / that left the hub (Initiated Return, Returned to Sender, Rerouted), counted as one. Not in Delivered or Current Day |
 | Reasons | Failure reasons of this day's unsuccessful deliveries, grouped with counts, e.g. "Customer unavailable - 3" |
 
-Shipments that left the hub (Rerouted, Initiated Return, or any status in the **Left hub** category) are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
+Shipments that left the hub (Initiated Return, Returned to Sender, Rerouted, or any status in the **Left hub** category) make up the **Return** figure and are not carried forward. Statuses are worked out from the history using the date each change happened, so past dates stay correct.
 
 ## How the weekly delivery rate is calculated
 
