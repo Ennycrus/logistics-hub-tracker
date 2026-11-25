@@ -131,6 +131,11 @@ class StatusHistory(models.Model):
         verbose_name_plural = 'Status history'
         indexes = [
             models.Index(fields=['effective_date']),
+            # Speeds the per-shipment lookups (latest status, delivery date,
+            # attempt count) and the daily report's 'status as of a date'.
+            models.Index(fields=['shipment', 'effective_date']),
+            # Speeds 'was this shipment delivered?' and attempt counting.
+            models.Index(fields=['shipment', 'new_status']),
         ]
 
     def __str__(self):
