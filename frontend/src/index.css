@@ -631,6 +631,21 @@ button.icon-button {
   margin: 0 0 0 4px;
 }
 
+.toolbar .date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.toolbar .date-filter input[type='date'] {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: auto;
+}
+
 .table-wrap {
   overflow-x: auto; /* the table scrolls sideways on a phone instead of breaking */
   border: 1px solid var(--border);

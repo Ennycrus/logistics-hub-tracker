@@ -30,6 +30,11 @@ function filterParams(filter) {
 
 const DELIVERED_BY_LABELS = { rider: 'Rider', captain: 'Captain', '3pl': '3PL' }
 
+// A delivery date (YYYY-MM-DD) shown as e.g. "2 Nov 2026".
+function fmtDate(iso) {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 const PAGE_SIZE = 50 // must match PAGE_SIZE in Django's settings.py
 
 /*
@@ -55,9 +60,13 @@ export default function ShipmentsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [type, setType] = useState('') // '' = TEMU and Base
   const [showDelivered, setShowDelivered] = useState(false)
-  // Hide delivered unless you asked for them: the box, a delivered filter, or a search.
+  const [deliveredFrom, setDeliveredFrom] = useState('')  // delivery-date range (by effective_date)
+  const [deliveredTo, setDeliveredTo] = useState('')
+  // Hide delivered unless you asked for them: the box, a delivered filter, a
+  // search, or a delivery-date filter (which is all about delivered shipments).
   const hideDelivered =
-    !showDelivered && search.trim() === '' && !['delivered', 'delivered_none'].includes(category)
+    !showDelivered && search.trim() === '' && !deliveredFrom && !deliveredTo
+    && !['delivered', 'delivered_none'].includes(category)
   const [page, setPage] = useState(1)
 
   const [data, setData] = useState({ count: 0, results: [] })
@@ -104,6 +113,8 @@ export default function ShipmentsPage() {
         const result = await shipments.list({
           search: search.trim(), ...filterParams(category), type, page,
           hide_delivered: hideDelivered ? 1 : undefined,
+          delivered_from: deliveredFrom || undefined,
+          delivered_to: deliveredTo || undefined,
         })
         if (!ignore) setData(result)
       } catch (err) {
@@ -117,7 +128,7 @@ export default function ShipmentsPage() {
       ignore = true
       clearTimeout(timer)
     }
-  }, [search, category, type, page, reloadKey, hideDelivered])
+  }, [search, category, type, page, reloadKey, hideDelivered, deliveredFrom, deliveredTo])
 
   // Arrived from a quick lookup (?search=...&open=1): open the editor only for an
   // EXACT waybill match, so a loose partial match never flings open the wrong
@@ -215,6 +226,22 @@ export default function ShipmentsPage() {
           />
           Show delivered
         </label>
+        <label className="date-filter">
+          Delivered from
+          <input type="date" value={deliveredFrom} max={deliveredTo || undefined}
+            onChange={(e) => { setDeliveredFrom(e.target.value); setPage(1) }} />
+        </label>
+        <label className="date-filter">
+          Delivered to
+          <input type="date" value={deliveredTo} min={deliveredFrom || undefined}
+            onChange={(e) => { setDeliveredTo(e.target.value); setPage(1) }} />
+        </label>
+        {(deliveredFrom || deliveredTo) && (
+          <button type="button" className="secondary small-button"
+            onClick={() => { setDeliveredFrom(''); setDeliveredTo(''); setPage(1) }}>
+            Clear dates
+          </button>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -278,7 +305,8 @@ export default function ShipmentsPage() {
                   <span className={`badge badge-${s.status_category}`}>{s.status_name}</span>
                   {s.status_category === 'delivered' && (
                     <div className="muted small">
-                      {s.delivered_by ? `by ${DELIVERED_BY_LABELS[s.delivered_by]}` : 'nobody recorded'}
+                      {s.delivered_on ? `delivered ${fmtDate(s.delivered_on)}` : 'delivery date not recorded'}
+                      {s.delivered_by ? ` · by ${DELIVERED_BY_LABELS[s.delivered_by]}` : ' · nobody recorded'}
                     </div>
                   )}
                   {s.ready_for_return && (

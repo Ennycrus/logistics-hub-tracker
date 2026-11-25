@@ -32,6 +32,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
     attempt_count = serializers.SerializerMethodField()
     ready_for_return = serializers.SerializerMethodField()
     last_update = serializers.SerializerMethodField()
+    delivered_on = serializers.SerializerMethodField()
     return_emailed = serializers.SerializerMethodField()
 
     def get_attempt_count(self, obj):
@@ -55,6 +56,18 @@ class ShipmentSerializer(serializers.ModelSerializer):
             )
         return value.isoformat() if value else None
 
+    def get_delivered_on(self, obj):
+        # The date the shipment was actually delivered (the delivery's
+        # effective_date), not when it was typed in. None if never delivered.
+        value = getattr(obj, 'delivered_on', 'unset')  # annotated on list/detail
+        if value == 'unset':
+            value = (
+                obj.history.filter(new_status__category=StatusOption.CATEGORY_DELIVERED)
+                .order_by('-effective_date', '-changed_at', '-pk')
+                .values_list('effective_date', flat=True).first()
+            )
+        return value.isoformat() if value else None
+
     class Meta:
         model = Shipment
         fields = [
@@ -62,7 +75,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             'status', 'status_name', 'status_category',
             'failure_reason', 'failure_reason_name', 'reason_note', 'delivered_by',
             'notes', 'first_seen_date', 'updated_at',
-            'attempt_count', 'ready_for_return', 'last_update',
+            'attempt_count', 'ready_for_return', 'last_update', 'delivered_on',
             'return_waybill', 'return_emailed',
         ]
 

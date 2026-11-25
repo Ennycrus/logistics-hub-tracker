@@ -3,7 +3,7 @@ from io import BytesIO
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models import Max
+from django.db.models import Max, Exists, OuterRef
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 
 from core.models import StatusOption
 
-from .models import ImportBatch, Shipment
+from .models import ImportBatch, Shipment, StatusHistory
 from .serializers import (
     BulkStatusChangeSerializer, ImportBatchDetailSerializer, ImportBatchSerializer,
     ImportConfirmSerializer, ImportUploadSerializer, NotesSerializer, ShipmentDetailSerializer,
@@ -64,6 +64,13 @@ def finalized_day_warning(shipments, effective_date, new_status, delivered_by=''
     )
 
 
+def _parse_date(value, field):
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        raise ValidationError({field: 'Use a date like 2026-11-25.'})
+
+
 class ShipmentList(generics.ListAPIView):
     """
     GET /api/shipments/
@@ -77,6 +84,7 @@ class ShipmentList(generics.ListAPIView):
                             (or rider | captain | 3pl)
         ?stale_days=7       not delivered yet and no status change for 7+ days
         ?hide_delivered=1   leave out delivered shipments
+        ?delivered_from=YYYY-MM-DD / ?delivered_to=YYYY-MM-DD   delivered on/between those dates
         ?ready_for_return=1 still at hub with 3+ failed attempts (ready to initiate return)
         ?page=2             next 50 rows
     """
@@ -105,6 +113,21 @@ class ShipmentList(generics.ListAPIView):
                 attempt_count__gte=settings.RETURN_AFTER_ATTEMPTS,
                 status__category__in=OPEN_CATEGORIES,
             )
+
+        delivered_from = params.get('delivered_from')
+        delivered_to = params.get('delivered_to')
+        if delivered_from or delivered_to:
+            # Shipments actually DELIVERED on/between those dates, by the delivery's
+            # effective_date (the real delivery day), not when it was entered.
+            deliveries = StatusHistory.objects.filter(
+                shipment=OuterRef('pk'),
+                new_status__category=StatusOption.CATEGORY_DELIVERED,
+            )
+            if delivered_from:
+                deliveries = deliveries.filter(effective_date__gte=_parse_date(delivered_from, 'delivered_from'))
+            if delivered_to:
+                deliveries = deliveries.filter(effective_date__lte=_parse_date(delivered_to, 'delivered_to'))
+            queryset = queryset.filter(Exists(deliveries))
 
         delivered_by = params.get('delivered_by')
         if delivered_by:

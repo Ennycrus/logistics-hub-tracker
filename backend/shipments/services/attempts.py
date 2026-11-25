@@ -34,9 +34,10 @@ def failed_attempts(shipment):
 
 def with_attempt_count(queryset):
     """
-    Add `attempt_count` (failed attempts) and `last_update` (the date of the
-    most recent status change) to each shipment, using subqueries so they stay
-    correct even next to other history aggregates.
+    Add `attempt_count` (failed attempts), `last_update` (the date of the most
+    recent status change) and `delivered_on` (the date the shipment was actually
+    delivered) to each shipment, using subqueries so they stay correct even next
+    to other history aggregates.
     """
     failed = (
         StatusHistory.objects
@@ -55,9 +56,16 @@ def with_attempt_count(queryset):
         .order_by('-effective_date', '-changed_at', '-pk')
         .values('effective_date')[:1]
     )
+    delivered = (
+        StatusHistory.objects
+        .filter(shipment=OuterRef('pk'), new_status__category=StatusOption.CATEGORY_DELIVERED)
+        .order_by('-effective_date', '-changed_at', '-pk')
+        .values('effective_date')[:1]
+    )
     return queryset.annotate(
         attempt_count=Coalesce(Subquery(failed, output_field=IntegerField()), 0),
-        last_update=Subquery(latest),  # the date of the shipment's most recent status change
+        last_update=Subquery(latest),       # date of the most recent status change
+        delivered_on=Subquery(delivered),   # date the shipment was actually delivered
     )
 
 
