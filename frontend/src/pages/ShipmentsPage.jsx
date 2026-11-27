@@ -221,44 +221,48 @@ export default function ShipmentsPage() {
             <option key={t.value} value={t.value}>{t.label} only</option>
           ))}
         </select>
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={showDelivered}
-            onChange={(e) => {
-              setShowDelivered(e.target.checked)
-              setPage(1)
-            }}
-          />
-          Show delivered
-        </label>
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={showReturned}
-            onChange={(e) => {
-              setShowReturned(e.target.checked)
-              setPage(1)
-            }}
-          />
-          Show returned
-        </label>
-        <label className="date-filter">
-          Delivered from
-          <input type="date" value={deliveredFrom} max={deliveredTo || undefined}
-            onChange={(e) => { setDeliveredFrom(e.target.value); setPage(1) }} />
-        </label>
-        <label className="date-filter">
-          Delivered to
-          <input type="date" value={deliveredTo} min={deliveredFrom || undefined}
-            onChange={(e) => { setDeliveredTo(e.target.value); setPage(1) }} />
-        </label>
-        {(deliveredFrom || deliveredTo) && (
-          <button type="button" className="secondary small-button"
-            onClick={() => { setDeliveredFrom(''); setDeliveredTo(''); setPage(1) }}>
-            Clear dates
-          </button>
-        )}
+        <div className="filter-group">
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={showDelivered}
+              onChange={(e) => {
+                setShowDelivered(e.target.checked)
+                setPage(1)
+              }}
+            />
+            Show delivered
+          </label>
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={showReturned}
+              onChange={(e) => {
+                setShowReturned(e.target.checked)
+                setPage(1)
+              }}
+            />
+            Show returned
+          </label>
+        </div>
+        <div className="filter-group">
+          <label className="date-filter">
+            Delivered from
+            <input type="date" value={deliveredFrom} max={deliveredTo || undefined}
+              onChange={(e) => { setDeliveredFrom(e.target.value); setPage(1) }} />
+          </label>
+          <label className="date-filter">
+            Delivered to
+            <input type="date" value={deliveredTo} min={deliveredFrom || undefined}
+              onChange={(e) => { setDeliveredTo(e.target.value); setPage(1) }} />
+          </label>
+          {(deliveredFrom || deliveredTo) && (
+            <button type="button" className="secondary small-button"
+              onClick={() => { setDeliveredFrom(''); setDeliveredTo(''); setPage(1) }}>
+              Clear dates
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="error">{error}</p>}

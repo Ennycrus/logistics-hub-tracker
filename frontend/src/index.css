@@ -611,15 +611,40 @@ button.icon-button {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 10px 14px;
   flex-wrap: wrap;
-  margin: 16px 0 12px;
+  margin: 4px 0 18px;
+  padding: 14px 16px;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .toolbar input:not([type='checkbox']) {
   flex: 1;
   min-width: 220px;
   margin: 0;
+}
+
+/* The search box grows, but only so far, so the filters sit beside it. */
+.toolbar > input[type='search'] {
+  flex: 1 1 240px;
+  max-width: 340px;
+}
+
+/* Tidy groups of related controls (the two toggles; the date range). */
+.toolbar .filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.toolbar .date-filter {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .toolbar select {
