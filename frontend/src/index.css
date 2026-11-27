@@ -861,6 +861,12 @@ button.stat:hover:not(:disabled) {
 
 .inline-date {
   margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .report-row td {
