@@ -4,6 +4,7 @@ from io import BytesIO
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import Max, Exists, OuterRef
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -22,6 +23,7 @@ from .services.attempts import with_attempt_count
 from .services.excel_reader import OPEN_CATEGORIES, preview_scan_file
 from .services.import_service import confirm_import, find_previous_import, undo_import
 from .services.search import waybill_search
+from .exports import build_shipments_xlsx
 from .services.status_service import bulk_change_status, change_status, is_only_adding_who
 
 
@@ -93,63 +95,70 @@ class ShipmentList(generics.ListAPIView):
     serializer_class = ShipmentSerializer
 
     def get_queryset(self):
-        queryset = with_attempt_count(
-            Shipment.objects.select_related('status', 'failure_reason').order_by('waybill_number')
+        return filter_shipments(self.request.query_params)
+
+
+def filter_shipments(params):
+    """
+    The shipments matching the list filters. Shared by the list and the Excel
+    export, so the download is always exactly what the page shows.
+    """
+    queryset = with_attempt_count(
+        Shipment.objects.select_related('status', 'failure_reason').order_by('waybill_number')
+    )
+
+    search = waybill_search(params.get('search'))
+    if search:
+        queryset = queryset.filter(search)
+    if params.get('status'):
+        queryset = queryset.filter(status_id=params['status'])
+    if params.get('category'):
+        queryset = queryset.filter(status__category=params['category'])
+    if params.get('type'):
+        queryset = queryset.filter(shipment_type=params['type'])
+    if params.get('hide_delivered') == '1':
+        queryset = queryset.exclude(status__category=StatusOption.CATEGORY_DELIVERED)
+    if params.get('hide_returned') == '1':
+        queryset = queryset.exclude(status__category=StatusOption.CATEGORY_LEFT_HUB)
+    if params.get('ready_for_return') == '1':
+        queryset = queryset.filter(
+            attempt_count__gte=settings.RETURN_AFTER_ATTEMPTS,
+            status__category__in=OPEN_CATEGORIES,
         )
-        params = self.request.query_params
 
-        search = waybill_search(params.get('search'))
-        if search:
-            queryset = queryset.filter(search)
-        if params.get('status'):
-            queryset = queryset.filter(status_id=params['status'])
-        if params.get('category'):
-            queryset = queryset.filter(status__category=params['category'])
-        if params.get('type'):
-            queryset = queryset.filter(shipment_type=params['type'])
-        if params.get('hide_delivered') == '1':
-            queryset = queryset.exclude(status__category=StatusOption.CATEGORY_DELIVERED)
-        if params.get('hide_returned') == '1':
-            queryset = queryset.exclude(status__category=StatusOption.CATEGORY_LEFT_HUB)
-        if params.get('ready_for_return') == '1':
-            queryset = queryset.filter(
-                attempt_count__gte=settings.RETURN_AFTER_ATTEMPTS,
-                status__category__in=OPEN_CATEGORIES,
-            )
+    delivered_from = params.get('delivered_from')
+    delivered_to = params.get('delivered_to')
+    if delivered_from or delivered_to:
+        # Shipments actually DELIVERED on/between those dates, by the delivery's
+        # effective_date (the real delivery day), not when it was entered.
+        deliveries = StatusHistory.objects.filter(
+            shipment=OuterRef('pk'),
+            new_status__category=StatusOption.CATEGORY_DELIVERED,
+        )
+        if delivered_from:
+            deliveries = deliveries.filter(effective_date__gte=_parse_date(delivered_from, 'delivered_from'))
+        if delivered_to:
+            deliveries = deliveries.filter(effective_date__lte=_parse_date(delivered_to, 'delivered_to'))
+        queryset = queryset.filter(Exists(deliveries))
 
-        delivered_from = params.get('delivered_from')
-        delivered_to = params.get('delivered_to')
-        if delivered_from or delivered_to:
-            # Shipments actually DELIVERED on/between those dates, by the delivery's
-            # effective_date (the real delivery day), not when it was entered.
-            deliveries = StatusHistory.objects.filter(
-                shipment=OuterRef('pk'),
-                new_status__category=StatusOption.CATEGORY_DELIVERED,
-            )
-            if delivered_from:
-                deliveries = deliveries.filter(effective_date__gte=_parse_date(delivered_from, 'delivered_from'))
-            if delivered_to:
-                deliveries = deliveries.filter(effective_date__lte=_parse_date(delivered_to, 'delivered_to'))
-            queryset = queryset.filter(Exists(deliveries))
+    delivered_by = params.get('delivered_by')
+    if delivered_by:
+        queryset = queryset.filter(
+            status__category=StatusOption.CATEGORY_DELIVERED,
+            delivered_by='' if delivered_by == 'none' else delivered_by,
+        )
 
-        delivered_by = params.get('delivered_by')
-        if delivered_by:
-            queryset = queryset.filter(
-                status__category=StatusOption.CATEGORY_DELIVERED,
-                delivered_by='' if delivered_by == 'none' else delivered_by,
-            )
-
-        stale_days = params.get('stale_days')
-        if stale_days:
-            if not stale_days.isdigit():
-                raise ValidationError('stale_days must be a number of days.')
-            cutoff = timezone.localdate() - datetime.timedelta(days=int(stale_days))
-            queryset = (
-                queryset.filter(status__category__in=OPEN_CATEGORIES)
-                .annotate(last_change=Max('history__effective_date'))
-                .filter(last_change__lte=cutoff)
-            )
-        return queryset
+    stale_days = params.get('stale_days')
+    if stale_days:
+        if not stale_days.isdigit():
+            raise ValidationError('stale_days must be a number of days.')
+        cutoff = timezone.localdate() - datetime.timedelta(days=int(stale_days))
+        queryset = (
+            queryset.filter(status__category__in=OPEN_CATEGORIES)
+            .annotate(last_change=Max('history__effective_date'))
+            .filter(last_change__lte=cutoff)
+        )
+    return queryset
 
 
 class ShipmentDetail(generics.RetrieveAPIView):
@@ -161,6 +170,26 @@ class ShipmentDetail(generics.RetrieveAPIView):
         )
     )
     serializer_class = ShipmentDetailSerializer
+
+
+class ShipmentExport(APIView):
+    """
+    GET /api/shipments/export/  -> the filtered shipments list as an .xlsx file.
+
+    Uses the SAME filters as the list, so the download is exactly what the page
+    shows (search, status, type, hidden toggles, delivery-date range...).
+    """
+
+    def get(self, request):
+        queryset = filter_shipments(request.query_params)
+        content = build_shipments_xlsx(queryset)
+        today = timezone.localdate().isoformat()
+        response = HttpResponse(
+            content,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="shipments_{today}.xlsx"'
+        return response
 
 
 class ShipmentStatusChange(APIView):

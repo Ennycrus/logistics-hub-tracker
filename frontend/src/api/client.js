@@ -106,6 +106,8 @@ export const options = {
 
 export const shipments = {
   list: (params) => request(`/shipments/${query(params)}`),
+  // A plain link to this URL downloads the filtered list as Excel (session cookie goes with it).
+  exportUrl: (params) => `/api/shipments/export/${query(params)}`,
   get: (id) => request(`/shipments/${id}/`),
   changeStatus: (id, change) =>
     request(`/shipments/${id}/status/`, { method: 'POST', body: change }),

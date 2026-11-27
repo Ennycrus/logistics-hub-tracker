@@ -184,6 +184,16 @@ export default function ShipmentsPage() {
 
   const totalPages = Math.max(1, Math.ceil(data.count / PAGE_SIZE))
 
+  // The same filters as the list (minus the page), used for the Excel download
+  // so the file matches exactly what is on screen.
+  const activeParams = {
+    search: search.trim(), ...filterParams(category), type,
+    hide_delivered: hideDelivered ? 1 : undefined,
+    hide_returned: hideReturned ? 1 : undefined,
+    delivered_from: deliveredFrom || undefined,
+    delivered_to: deliveredTo || undefined,
+  }
+
   return (
     <div className="card">
       <h2>Shipments</h2>
@@ -268,11 +278,18 @@ export default function ShipmentsPage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
 
-      <p className="muted">
-        {loading ? 'Loading…' : `${data.count} shipment${data.count === 1 ? '' : 's'}`}
-        {!loading && (hideDelivered || hideReturned) &&
-          ` (${[hideDelivered && 'delivered', hideReturned && 'returned'].filter(Boolean).join(' & ')} hidden)`}
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <p className="muted" style={{ margin: 0 }}>
+          {loading ? 'Loading…' : `${data.count} shipment${data.count === 1 ? '' : 's'}`}
+          {!loading && (hideDelivered || hideReturned) &&
+            ` (${[hideDelivered && 'delivered', hideReturned && 'returned'].filter(Boolean).join(' & ')} hidden)`}
+        </p>
+        {!loading && data.count > 0 && (
+          <a className="secondary small-button" href={shipments.exportUrl(activeParams)}>
+            ↓ Download Excel
+          </a>
+        )}
+      </div>
 
       {selectedIds.length > 0 && (
         <div className="bulk-bar">
