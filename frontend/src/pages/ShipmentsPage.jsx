@@ -60,6 +60,7 @@ export default function ShipmentsPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [type, setType] = useState('') // '' = TEMU and Base
   const [showDelivered, setShowDelivered] = useState(false)
+  const [showReturned, setShowReturned] = useState(false)
   const [deliveredFrom, setDeliveredFrom] = useState('')  // delivery-date range (by effective_date)
   const [deliveredTo, setDeliveredTo] = useState('')
   // Hide delivered unless you asked for them: the box, a delivered filter, a
@@ -67,6 +68,10 @@ export default function ShipmentsPage() {
   const hideDelivered =
     !showDelivered && search.trim() === '' && !deliveredFrom && !deliveredTo
     && !['delivered', 'delivered_none'].includes(category)
+  // Hide returned (left-the-hub) unless the box is ticked, you searched, or you
+  // picked the 'Left the hub' filter.
+  const hideReturned =
+    !showReturned && search.trim() === '' && category !== 'left_hub'
   const [page, setPage] = useState(1)
 
   const [data, setData] = useState({ count: 0, results: [] })
@@ -113,6 +118,7 @@ export default function ShipmentsPage() {
         const result = await shipments.list({
           search: search.trim(), ...filterParams(category), type, page,
           hide_delivered: hideDelivered ? 1 : undefined,
+          hide_returned: hideReturned ? 1 : undefined,
           delivered_from: deliveredFrom || undefined,
           delivered_to: deliveredTo || undefined,
         })
@@ -128,7 +134,7 @@ export default function ShipmentsPage() {
       ignore = true
       clearTimeout(timer)
     }
-  }, [search, category, type, page, reloadKey, hideDelivered, deliveredFrom, deliveredTo])
+  }, [search, category, type, page, reloadKey, hideDelivered, hideReturned, deliveredFrom, deliveredTo])
 
   // Arrived from a quick lookup (?search=...&open=1): open the editor only for an
   // EXACT waybill match, so a loose partial match never flings open the wrong
@@ -226,6 +232,17 @@ export default function ShipmentsPage() {
           />
           Show delivered
         </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={showReturned}
+            onChange={(e) => {
+              setShowReturned(e.target.checked)
+              setPage(1)
+            }}
+          />
+          Show returned
+        </label>
         <label className="date-filter">
           Delivered from
           <input type="date" value={deliveredFrom} max={deliveredTo || undefined}
@@ -249,7 +266,8 @@ export default function ShipmentsPage() {
 
       <p className="muted">
         {loading ? 'Loading…' : `${data.count} shipment${data.count === 1 ? '' : 's'}`}
-        {!loading && hideDelivered && ' (delivered hidden)'}
+        {!loading && (hideDelivered || hideReturned) &&
+          ` (${[hideDelivered && 'delivered', hideReturned && 'returned'].filter(Boolean).join(' & ')} hidden)`}
       </p>
 
       {selectedIds.length > 0 && (

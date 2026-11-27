@@ -84,6 +84,7 @@ class ShipmentList(generics.ListAPIView):
                             (or rider | captain | 3pl)
         ?stale_days=7       not delivered yet and no status change for 7+ days
         ?hide_delivered=1   leave out delivered shipments
+        ?hide_returned=1    leave out shipments that left the hub (Initiated Return / returned to sender)
         ?delivered_from=YYYY-MM-DD / ?delivered_to=YYYY-MM-DD   delivered on/between those dates
         ?ready_for_return=1 still at hub with 3+ failed attempts (ready to initiate return)
         ?page=2             next 50 rows
@@ -108,6 +109,8 @@ class ShipmentList(generics.ListAPIView):
             queryset = queryset.filter(shipment_type=params['type'])
         if params.get('hide_delivered') == '1':
             queryset = queryset.exclude(status__category=StatusOption.CATEGORY_DELIVERED)
+        if params.get('hide_returned') == '1':
+            queryset = queryset.exclude(status__category=StatusOption.CATEGORY_LEFT_HUB)
         if params.get('ready_for_return') == '1':
             queryset = queryset.filter(
                 attempt_count__gte=settings.RETURN_AFTER_ATTEMPTS,
